@@ -144,6 +144,38 @@ function RuLivePage() {
               </div>
             )}
           </Card>
+
+          {r.topMatches && r.topMatches.length > 0 && (
+            <Card>
+              <div className="border-b border-border p-4">
+                <h2 className="font-display text-lg font-semibold">Топ совпадений (есть в обеих БК)</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Отсортировано по сумме обратных коэф. (чем ближе к 1.00 — тем ближе к вилке).
+                </p>
+              </div>
+              <div className="divide-y divide-border">
+                {r.topMatches.map((mt, idx) => (
+                  <div key={idx} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{mt.event_name}</div>
+                      <div className="text-xs text-muted-foreground">{mt.bookies.join(" · ")}</div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-mono">
+                      {mt.best.map((b, i) => (
+                        <span key={i} className="rounded bg-muted px-2 py-0.5">
+                          {b.outcome} {b.odds.toFixed(2)}
+                          <span className="ml-1 text-[10px] text-muted-foreground">{b.bm}</span>
+                        </span>
+                      ))}
+                      <Badge variant={mt.arbPercent < 1 ? "default" : "secondary"} className="font-mono">
+                        {(mt.arbPercent * 100).toFixed(1)}%
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>
