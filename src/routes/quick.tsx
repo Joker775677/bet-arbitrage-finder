@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Zap, TrendingUp, AlertCircle } from "lucide-react";
+import { Zap, TrendingUp, AlertCircle, ClipboardPaste } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { findArbitrages, type OddRow } from "@/lib/arbitrage";
 
@@ -22,6 +24,61 @@ const OUTCOMES: Record<Market, string[]> = {
 };
 
 const BOOKIES = ["Winline", "Betcity", "Fonbet", "Лига Ставок", "Pari", "Олимпбет", "BetBoom", "1xBet"];
+
+// Normalize outcome tokens: "П1"/"1"/"home" → "1", "Х"/"X"/"draw" → "X", "П2"/"2"/"away" → "2"
+function normOutcome(raw: string): string | null {
+  const s = raw.trim().toLowerCase().replace(/[.:)]+$/, "");
+  if (["1", "п1", "home", "h", "хозяева", "first"].includes(s)) return "1";
+  if (["x", "х", "draw", "d", "ничья", "n"].includes(s)) return "X";
+  if (["2", "п2", "away", "a", "гости", "second"].includes(s)) return "2";
+  return null;
+}
+
+// Detect bookmaker from a line. Returns canonical name or null.
+function detectBookie(line: string): string | null {
+  const low = line.toLowerCase();
+  for (const b of BOOKIES) {
+    if (low.includes(b.toLowerCase())) return b;
+  }
+  return null;
+}
+
+// Parse a chunk of text → odds map. Supports "1=2.10", "1: 2.10", "1 2.10", "П1 2.10", commas.
+function parseOddsChunk(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  // Find all (token, number) pairs. Token is letters/П1/Х/etc, number is decimal.
+  const re = /([A-Za-zА-Яа-я]?\d?|[ХXxХх])\s*[=:\s]\s*(\d+(?:[.,]\d+)?)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const key = normOutcome(m[1]);
+    const val = m[2].replace(",", ".");
+    if (key && Number(val) > 1) out[key] = val;
+  }
+  return out;
+}
+
+// Parse full paste: tries to split into bookie blocks.
+function parsePaste(text: string): { bookie: string | null; odds: Record<string, string> }[] {
+  const blocks: { bookie: string | null; odds: Record<string, string> }[] = [];
+  // Split by lines, group consecutive lines per detected bookie.
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let current: { bookie: string | null; lines: string[] } | null = null;
+  for (const line of lines) {
+    const bm = detectBookie(line);
+    if (bm) {
+      if (current) blocks.push({ bookie: current.bookie, odds: parseOddsChunk(current.lines.join(" ")) });
+      current = { bookie: bm, lines: [line] };
+    } else if (current) {
+      current.lines.push(line);
+    } else {
+      current = { bookie: null, lines: [line] };
+    }
+  }
+  if (current) blocks.push({ bookie: current.bookie, odds: parseOddsChunk(current.lines.join(" ")) });
+  // If no bookie detected anywhere AND text has both blocks separated by blank line, fallback
+  return blocks.filter((b) => Object.keys(b.odds).length > 0);
+}
+
 
 function QuickPage() {
   const [event, setEvent] = useState("");
@@ -69,6 +126,43 @@ function QuickPage() {
     setOdds1({});
     setOdds2({});
     setEvent("");
+    setPaste("");
+  }
+
+  const [paste, setPaste] = useState("");
+
+  function applyPaste() {
+    const blocks = parsePaste(paste);
+    if (!blocks.length) {
+      toast.error("Не удалось распознать коэффициенты");
+      return;
+    }
+    // Map blocks to slots: prefer bookie name match to bm1/bm2; else fill in order.
+    const slots: { setBm: (s: string) => void; setOdds: (o: Record<string, string>) => void; cur: string }[] = [
+      { setBm: setBm1, setOdds: setOdds1, cur: bm1 },
+      { setBm: setBm2, setOdds: setOdds2, cur: bm2 },
+    ];
+    const used = [false, false];
+    // First pass: bookie-name matches
+    for (const b of blocks) {
+      if (!b.bookie) continue;
+      const idx = slots.findIndex((s, i) => !used[i] && s.cur.toLowerCase() === b.bookie!.toLowerCase());
+      if (idx !== -1) {
+        slots[idx].setOdds(b.odds);
+        used[idx] = true;
+      }
+    }
+    // Second pass: remaining blocks → first free slot, set bookie if known
+    for (const b of blocks) {
+      const idx = used.indexOf(false);
+      if (idx === -1) break;
+      // Skip blocks already consumed by name
+      if (b.bookie && slots.some((s, i) => used[i] && s.cur.toLowerCase() === b.bookie!.toLowerCase())) continue;
+      if (b.bookie) slots[idx].setBm(b.bookie);
+      slots[idx].setOdds(b.odds);
+      used[idx] = true;
+    }
+    toast.success(`Распознано блоков: ${blocks.length}`);
   }
 
   return (
@@ -82,6 +176,33 @@ function QuickPage() {
           Скопируйте коэффициенты с Winline и Betcity (или любых других БК) — мгновенный расчёт вилки.
         </p>
       </div>
+
+      <Card className="p-5 space-y-4 border-primary/30 bg-primary/5">
+        <div className="grid gap-1.5">
+          <Label className="flex items-center gap-2">
+            <ClipboardPaste className="h-4 w-4" />
+            Автопарсинг — вставьте текст с коэффициентами
+          </Label>
+          <Textarea
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            rows={4}
+            placeholder={"Winline 1=2.10 X=3.20 2=2.55\nBetcity П1 2.05 Х 3.40 П2 2.60"}
+            className="font-mono text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={applyPaste} disabled={!paste.trim()}>
+              <ClipboardPaste className="mr-1 h-4 w-4" /> Распознать и заполнить
+            </Button>
+            <Button size="sm" variant="ghost" onClick={async () => {
+              try { const t = await navigator.clipboard.readText(); setPaste(t); } catch { toast.error("Не удалось прочитать буфер"); }
+            }}>Вставить из буфера</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Поддерживает: <code>1=2.10</code>, <code>П1 2.10</code>, <code>X: 3.2</code>. Названия БК (Winline, Betcity и т.д.) распознаются автоматически.
+          </p>
+        </div>
+      </Card>
 
       <Card className="p-5 space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
