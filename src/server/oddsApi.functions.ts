@@ -166,7 +166,7 @@ export const scanAllAndSave = createServerFn({ method: "POST" })
     const key = process.env.ODDS_API_KEY;
     if (!key) throw new Error("ODDS_API_KEY is not configured");
     const sports = data.sports?.length ? data.sports : DEFAULT_SPORTS;
-    const regions = data.regions || "eu,uk,us";
+    const regions = data.regions || "eu,uk,us,au";
     const markets = data.markets || "h2h";
     const stake = data.stake ?? 1000;
     const minRoi = data.minRoi ?? 1;
