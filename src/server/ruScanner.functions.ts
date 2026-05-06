@@ -1146,10 +1146,10 @@ export const scanRuSource = createServerFn({ method: "POST" })
   .handler(async ({ data }) => scanOneSource(data.source));
 
 export const finalizeRuScan = createServerFn({ method: "POST" })
-  .inputValidator((d: { stake?: number; minRoi?: number; results: SourceScanResult[] }) => ({
+  .inputValidator((d: any) => ({
     stake: typeof d?.stake === "number" && d.stake > 0 ? d.stake : 10000,
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
-    results: Array.isArray(d?.results) ? d.results : [],
+    results: (Array.isArray(d?.results) ? d.results : []) as SourceScanResult[],
   }))
   .handler(async ({ data }) => {
     const bookieResults = data.results;
