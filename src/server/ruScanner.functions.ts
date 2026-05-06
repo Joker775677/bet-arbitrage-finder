@@ -60,7 +60,7 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 30000);
+  const t = setTimeout(() => ctrl.abort(), 60000);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
@@ -121,6 +121,114 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
   }
 }
 
+interface ExtractedListJSON {
+  events?: {
+    team1?: string;
+    team2?: string;
+    sport?: string;
+    league?: string;
+    markets?: { name?: string; selections?: { outcome?: string; odds?: number }[] }[];
+  }[];
+}
+
+async function fcExtractList(url: string, sportHint?: string): Promise<ExtractedListJSON | null> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 90000);
+  try {
+    const r = await fetch(FIRECRAWL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        url,
+        formats: [{
+          type: "json",
+          prompt: `Extract ALL upcoming or live sports betting events visible on this bookmaker page${sportHint ? ` (sport: ${sportHint})` : ""}. For EACH event return team1, team2 (exact names as shown), sport, league, and a 'markets' array. Skip cybersport/FIFA/virtual events. For each market include name (e.g. 'Победитель','1X2','Фора 5.5','Тотал 150.5','Двойной шанс') and selections [{outcome, odds}]. outcomes must be one of: '1','2','X','1X','12','X2','Б','М','Ф1 -5.5','Ф1 5.5','Ф2 -5.5','Ф2 5.5'. odds are decimal numbers > 1.01. Return up to 200 events.`,
+          schema: {
+            type: "object",
+            properties: {
+              events: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    team1: { type: "string" },
+                    team2: { type: "string" },
+                    sport: { type: "string" },
+                    league: { type: "string" },
+                    markets: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string" },
+                          selections: {
+                            type: "array",
+                            items: {
+                              type: "object",
+                              properties: { outcome: { type: "string" }, odds: { type: "number" } },
+                              required: ["outcome", "odds"],
+                            },
+                          },
+                        },
+                        required: ["name", "selections"],
+                      },
+                    },
+                  },
+                  required: ["team1", "team2", "markets"],
+                },
+              },
+            },
+            required: ["events"],
+          },
+        }],
+        onlyMainContent: true,
+        waitFor: 5000,
+        maxAge: 0,
+        storeInCache: false,
+        removeBase64Images: true,
+        timeout: 85000,
+        location: { country: "RU", languages: ["ru-RU"] },
+      }),
+    });
+    const j: any = await r.json();
+    if (!j.success) {
+      console.log(`[ruScanner] fcExtractList failed for ${url}: ${JSON.stringify(j).slice(0, 200)}`);
+      return null;
+    }
+    return (j.data?.json ?? j.json ?? j.data?.extract ?? j.extract ?? null) as ExtractedListJSON | null;
+  } catch (e: any) {
+    console.log(`[ruScanner] fcExtractList error for ${url}: ${e?.message}`);
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function eventsFromExtractedList(extracted: ExtractedListJSON | null, bookmaker: string, url: string, sportHint?: string): RawEvent[] {
+  if (!extracted?.events?.length) return [];
+  const out: RawEvent[] = [];
+  for (const ev of extracted.events) {
+    if (!ev?.team1 || !ev?.team2 || !Array.isArray(ev.markets)) continue;
+    const team1 = cleanParticipantName(ev.team1);
+    const team2 = cleanParticipantName(ev.team2);
+    if (!team1 || !team2 || team1 === team2) continue;
+    if (isJunkEvent(team1, team2, url)) continue;
+    const markets: RawMarket[] = [];
+    for (const m of ev.markets) {
+      if (!m?.name || !Array.isArray(m.selections)) continue;
+      addMarket(markets, m.name, m.selections.map((s) => ({
+        outcome: String(s?.outcome ?? "").trim(),
+        odds: typeof s?.odds === "number" ? s.odds : Number(s?.odds),
+      })).filter((s) => s.outcome));
+    }
+    if (!markets.length) continue;
+    out.push({ bookmaker, url, sport: ev.sport ?? sportHint, league: ev.league, team1, team2, markets });
+  }
+  return out;
+}
 function eventFromExtracted(
   extracted: ExtractedEventJSON | null,
   bookmaker: string,
@@ -996,7 +1104,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             return;
           }
           const md = await fcScrape(s.url, 2500);
-          const events =
+          let events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
@@ -1004,6 +1112,14 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
                     : s.parser === "zenit" ? parseZenit(md, s.name)
                       : s.parser === "fonbet" ? parseFonbet(md, s.name)
                         : parseGenericLine(clean(md), s.name);
+          if (!events.length) {
+            const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
+            const list = await fcExtractList(s.url, sportHint);
+            events = eventsFromExtractedList(list, s.name, s.url, sportHint);
+            console.log(`[ruScanner] ${s.name} LLM-fallback events=${events.length}`);
+          } else {
+            console.log(`[ruScanner] ${s.name} markdown events=${events.length}`);
+          }
           bookieResults.push({ name: s.name, url: s.url, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, url: s.url, events: [], error: e.message });
