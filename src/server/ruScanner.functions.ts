@@ -9,6 +9,7 @@ interface RawEvent {
   team1: string;
   team2: string;
   odds: [number, number, number]; // 1, X, 2
+  dateKey?: string; // dd.mm; used to avoid mixing different matches with same teams
 }
 
 async function fcScrape(url: string, waitFor = 6000): Promise<string> {
@@ -60,12 +61,51 @@ function parseOdds3(s: string): [number, number, number] | null {
   return null;
 }
 
+const MONTHS: Record<string, string> = {
+  jan: "01", january: "01", янв: "01", января: "01",
+  feb: "02", february: "02", фев: "02", февраля: "02",
+  mar: "03", march: "03", мар: "03", марта: "03",
+  apr: "04", april: "04", апр: "04", апреля: "04",
+  may: "05", мая: "05", май: "05",
+  jun: "06", june: "06", июн: "06", июня: "06",
+  jul: "07", july: "07", июл: "07", июля: "07",
+  aug: "08", august: "08", авг: "08", августа: "08",
+  sep: "09", sept: "09", september: "09", сен: "09", сентября: "09",
+  oct: "10", october: "10", окт: "10", октября: "10",
+  nov: "11", november: "11", ноя: "11", ноября: "11",
+  dec: "12", december: "12", дек: "12", декабря: "12",
+};
+
+function parseDateKey(text: string): string | undefined {
+  const numeric = text.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?\b/);
+  if (numeric) return `${numeric[1].padStart(2, "0")}.${numeric[2].padStart(2, "0")}`;
+  const word = text.toLowerCase().match(/\b(\d{1,2})\s+([a-zа-яё.]+)\b/i);
+  if (!word) return undefined;
+  const month = MONTHS[word[2].replace(/\.$/, "")];
+  return month ? `${word[1].padStart(2, "0")}.${month}` : undefined;
+}
+
+function cleanParticipantName(name: string): string {
+  return name
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/&nbsp;|\u00a0/g, " ")
+    .replace(/\\-/g, "-")
+    .replace(/\((?:первый матч|ответный матч|счет|сч[её]т|агр\.|agg\.)[^)]*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isSideMarket(text: string): boolean {
+  return /\((?:жк|угловые|карточки|удары|офсайды|фолы|пенальти|статистика|xg|желтые|жёлтые|красные)\)/i.test(text);
+}
+
 // Parse Winline / Fonbet style: [team1  team2](url) on one line, odds on next lines
 // Skip cybersports / virtual / non-real events
 function isJunkEvent(team1: string, team2: string, url: string): boolean {
   const blob = `${team1} ${team2} ${url}`.toLowerCase();
-  // Esports/FIFA player tags in parentheses, e.g. "Bayern (Shrek)"
-  if (/\([^)]+\)/.test(team1) || /\([^)]+\)/.test(team2)) return true;
+  if (isSideMarket(blob)) return true;
+  // Esports/FIFA player tags in parentheses, e.g. "Bayern (Shrek)".
+  if (/\([a-z0-9_]{3,24}\)/i.test(team1) || /\([a-z0-9_]{3,24}\)/i.test(team2)) return true;
   // Fonbet category 118 = FIFA cybersport
   if (/\/category\/118\//.test(url)) return true;
   // Common esports / virtual markers
