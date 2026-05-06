@@ -535,15 +535,29 @@ function displayKey(key: string): string {
   return key.split("|").slice(1).join(" — ");
 }
 
+function orientMarkets(markets: RawMarket[], flip: boolean): RawMarket[] {
+  if (!flip) return markets;
+  const swapOutcome = (outcome: string) => outcome
+    .replace(/^1$/, "__TWO__").replace(/^2$/, "1").replace(/^__TWO__$/, "2")
+    .replace(/^1X$/, "__X2__").replace(/^X2$/, "1X").replace(/^__X2__$/, "X2")
+    .replace(/^Ф1\b/, "__F2__").replace(/^Ф2\b/, "Ф1").replace(/^__F2__/, "Ф2");
+  const swapMarket = (market: string) => market
+    .replace(/^ИТ1\b/, "__IT2__").replace(/^ИТ2\b/, "ИТ1").replace(/^__IT2__/, "ИТ2");
+  return markets.map((m) => ({
+    market: swapMarket(m.market),
+    selections: m.selections.map((s) => ({ ...s, outcome: swapOutcome(s.outcome) })),
+  }));
+}
+
 export const scanRussianBookies = createServerFn({ method: "POST" })
   .inputValidator((d: { stake?: number; minRoi?: number }) => ({
     stake: typeof d?.stake === "number" && d.stake > 0 ? d.stake : 10000,
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "marathon" | "tennisi" | "betboom" }[] = [
+    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" }[] = [
       { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "generic" },
+      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "fonbet" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
       { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
       { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "betboom" },
@@ -558,7 +572,8 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
-                  : parseGenericLine(clean(md), s.name);
+                  : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                    : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
