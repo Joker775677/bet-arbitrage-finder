@@ -35,7 +35,7 @@ function clean(md: string): string[] {
 
 const ODDS_3 = /^(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})$/;
 const LINK_EVENT = /^\[([^[\]]+?)\s+(?:[—–-])\s+([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
-const LINK_EVENT_2SP = /^\[([^[\]]+?)\s{2,}(^[^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
+const LINK_EVENT_2SP = /^\[([^[\]]+?)\s{2,}([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
 
 function parseEventLine(line: string): { team1: string; team2: string; url: string } | null {
   let m = line.match(LINK_EVENT);
