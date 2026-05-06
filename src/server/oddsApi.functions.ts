@@ -20,11 +20,19 @@ export const DEFAULT_SPORTS = [
 // Allow-list of bookmaker keys (The Odds API keys). Only these BMs will be considered.
 // Source: user-selected RU/CIS bookmakers.
 export const ALLOWED_BOOKMAKERS = new Set<string>([
+  // Доступны в РФ через зеркала/VPN
+  "pinnacle",
+  "1xbet",
+  "betfair_ex_eu",
+  "betfair_ex_uk",
+  "marathonbet",
+  "williamhill",
+  "williamhill_us",
+  // РУ-БК (если попадутся)
   "betboom",
   "betcity",
   "leon",
   "ligastavok",
-  "marathonbet", // alt for some
   "melbet",
   "olimp",
   "winline",
