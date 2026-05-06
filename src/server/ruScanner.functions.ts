@@ -975,7 +975,11 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
         try {
           if (s.parser === "winline-detail" || s.parser === "leon-detail") {
             const extracted = await fcExtractEvent(s.url);
-            const events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+            let events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+            if (!events.length) {
+              const md = await fcScrape(s.url, 2500);
+              events = s.parser === "winline-detail" ? parseWinlineDetail(md, s.name) : parseLeonDetail(md, s.name);
+            }
             console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets?.length ?? 0}`);
             bookieResults.push({ name: s.name, url: s.url, events });
             return;
@@ -1117,12 +1121,16 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
 
     return {
       arbs: arbsDisplay,
-      stats: bookieResults.map((br) => ({
-        bookmaker: br.name,
-        url: br.url,
-        events: br.events.length,
-        error: br.error,
-      })),
+      stats: Array.from(bookieResults.reduce((acc, br) => {
+        const prev = acc.get(br.name);
+        acc.set(br.name, {
+          bookmaker: br.name,
+          url: prev?.url ?? br.url,
+          events: (prev?.events ?? 0) + br.events.length,
+          error: prev?.error ?? br.error,
+        });
+        return acc;
+      }, new Map<string, { bookmaker: string; url: string; events: number; error?: string }>()).values()),
       totalOdds: odds.length,
       matchedEvents: new Set(odds.map((o) => o.event_name)).size,
       topMatches: matched.slice(0, 20),
