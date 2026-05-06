@@ -41,6 +41,20 @@ export interface Arb {
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+// Сколько исходов должно быть в рынке, чтобы он считался "полным".
+// Для тоталов/фор это всегда пара (Over/Under, 1/2), 1X2 = три, DC = три (1X, 12, X2), BTTS = 2.
+function expectedOutcomes(market: string): number {
+  const m = market.toUpperCase();
+  if (m === "1X2") return 3;
+  if (m === "DC") return 3;
+  if (m === "BTTS") return 2;
+  if (m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL") || m.startsWith("HANDICAP") || m === "OU") return 2;
+  return 2;
+}
+
+// Фильтр явно мусорных названий команд/событий, чтобы не ловить "гости — хозяева" и т.п.
+const JUNK_TEAM_RE = /\b(хозяева|гости|home|away|team\s*[12])\b/i;
+
 export function findArbitrages(
   odds: OddRow[],
   totalStake = 1000,
@@ -49,6 +63,7 @@ export function findArbitrages(
   // Group by event + market
   const groups = new Map<string, OddRow[]>();
   for (const o of odds) {
+    if (JUNK_TEAM_RE.test(o.event_name)) continue;
     const key = `${norm(o.sport)}|${norm(o.event_name)}|${norm(o.market)}`;
     const arr = groups.get(key) ?? [];
     arr.push(o);
@@ -65,7 +80,10 @@ export function findArbitrages(
       const cur = bestByOutcome.get(k);
       if (!cur || r.odds > cur.odds) bestByOutcome.set(k, r);
     }
-    if (bestByOutcome.size < 2) continue;
+
+    // Должны быть ВСЕ исходы рынка — иначе это не вилка, а кривой набор.
+    const need = expectedOutcomes(rows[0].market);
+    if (bestByOutcome.size !== need) continue;
 
     // Need legs from at least 2 different bookmakers (otherwise not a real arb)
     const distinctBms = new Set(Array.from(bestByOutcome.values()).map(r => r.bookmaker_id));
@@ -77,6 +95,8 @@ export function findArbitrages(
 
     const roi = (1 / arbPercent - 1) * 100;
     if (roi < minRoi) continue;
+    // Отсекаем нереалистичные ROI (>30% — почти наверняка ошибка маппинга/исхода)
+    if (roi > 30) continue;
 
     const computedLegs: ArbLeg[] = legs.map(l => {
       const stake = (totalStake * (1 / l.odds)) / arbPercent;
@@ -112,5 +132,6 @@ export function findArbitrages(
   arbs.sort((a, b) => b.roi - a.roi);
   return arbs;
 }
+
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
