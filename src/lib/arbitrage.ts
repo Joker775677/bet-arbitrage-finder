@@ -12,6 +12,7 @@ export interface OddRow {
   market: string;
   outcome: string;
   odds: number;
+  url?: string;
 }
 
 export interface ArbLeg {
@@ -21,6 +22,7 @@ export interface ArbLeg {
   bookmaker_name: string;
   stake: number;
   payout: number;
+  url?: string;
 }
 
 export interface Arb {
