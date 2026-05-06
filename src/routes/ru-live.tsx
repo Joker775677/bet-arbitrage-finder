@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { finalizeRuScan } from "@/server/ruScanner.functions";
 import { importFonbet, importPari, importLeon } from "@/server/fonbetImport.functions";
 import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +36,17 @@ const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string 
   { name: "Leon",   key: "leon",   url: "https://leon.ru/live/" },
 ];
 
+type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
+
+interface TopMatch {
+  event_name: string;
+  bookies: { name: string; url?: string }[];
+  best: { outcome: string; odds: number; bm: string }[];
+  arbPercent: number;
+}
+
+type DisplayResult = ScanResult & { topMatches?: TopMatch[] };
+
 interface DbEventRow {
   id: string;
   source: string;
@@ -62,7 +72,7 @@ function RuLivePage() {
   const [states, setStates] = useState<SourceState[]>(
     ENGINE_LIST.map((s) => ({ source: { name: s.name, url: s.url }, status: "pending", events: 0 })),
   );
-  const [r, setR] = useState<FinalizeResult | null>(null);
+  const [r, setR] = useState<DisplayResult | null>(null);
 
   const run = useCallback(async () => {
     if (running) return;
@@ -83,15 +93,7 @@ function RuLivePage() {
           error: stat.error,
         };
       }));
-      // адаптируем под FinalizeResult-формат
-      setR({
-        arbs: res.arbs,
-        stats: res.stats.map((s) => ({ bookmaker: s.bookmaker, url: "", events: s.events, error: s.error })),
-        totalOdds: res.totalOdds,
-        matchedEvents: res.matchedEvents,
-        topMatches: [],
-        scannedAt: res.scannedAt,
-      } as unknown as FinalizeResult);
+      setR({ ...res, topMatches: [] });
       const okCount = res.stats.filter((s) => !s.error && s.events > 0).length;
       const totalSaved = res.stats.reduce((a, s) => a + s.saved, 0);
       const totalOdds = res.stats.reduce((a, s) => a + s.odds, 0);
