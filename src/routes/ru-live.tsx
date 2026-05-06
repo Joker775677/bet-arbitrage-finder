@@ -85,10 +85,16 @@ function RuLivePage() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
               <span>Всего коэф.: <span className="font-mono text-foreground">{r.totalOdds}</span></span>
               <span>Уникальных событий: <span className="font-mono text-foreground">{r.matchedEvents}</span></span>
+              {r.scannedAt && (
+                <span>Снимок от: <span className="font-mono text-foreground">{new Date(r.scannedAt).toLocaleTimeString("ru")}</span></span>
+              )}
             </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              ⚠️ Коэффициенты у БК меняются каждые несколько секунд. Это снимок на момент сканирования — на сайте БК могут отличаться.
+            </p>
           </Card>
 
           <Card>
