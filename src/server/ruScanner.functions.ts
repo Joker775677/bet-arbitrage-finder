@@ -178,8 +178,8 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(rowRe);
     if (!m) continue;
-    const team1 = m[1].trim();
-    const team2 = m[3].trim();
+    const team1 = cleanParticipantName(m[1]);
+    const team2 = cleanParticipantName(m[3]);
     const url = m[2];
     if (isJunkEvent(team1, team2, url)) continue;
     // Look for odds row in next ~6 lines, with leading "| +<digits> |" or just three odds
@@ -188,7 +188,7 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
       if (oddsMatches && oddsMatches.length >= 3 && lines[j].includes("|")) {
         const a = oddsMatches.slice(0, 3).map(Number) as [number, number, number];
         if (a.every((x) => x > 1.01 && x < 100)) {
-          out.push({ bookmaker, url, team1, team2, odds: a });
+          out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(lines[i]) });
           break;
         }
       }
@@ -236,11 +236,15 @@ function normTeam(name: string): string {
   return s;
 }
 
-function eventKey(team1: string, team2: string): string {
+function eventKey(team1: string, team2: string, dateKey?: string): string {
   const a = normTeam(team1);
   const b = normTeam(team2);
   // order-independent so home/away swaps still match
-  return [a, b].sort().join("|");
+  return `${dateKey ?? "no-date"}|${[a, b].sort().join("|")}`;
+}
+
+function displayKey(key: string): string {
+  return key.replace(/^(?:no-date|\d{2}\.\d{2})\|/, "");
 }
 
 export const scanRussianBookies = createServerFn({ method: "POST" })
