@@ -106,6 +106,7 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
     const team1 = m[1].trim();
     const team2 = m[3].trim();
     const url = m[2];
+    if (isJunkEvent(team1, team2, url)) continue;
     // Look for odds row in next ~6 lines, with leading "| +<digits> |" or just three odds
     for (let j = i + 1; j < Math.min(i + 7, lines.length); j++) {
       const oddsMatches = lines[j].match(/\b\d{1,2}\.\d{2,3}\b/g);
