@@ -227,27 +227,33 @@ function normalizeEngine(data) {
   return out;
 }
 
-app.get("/fonbet", async (req, res) => {
-  if (TOKEN && req.headers["x-token"] !== TOKEN) {
-    return res.status(401).json({ error: "unauthorized" });
-  }
-  const scope = parseInt(req.query.scope, 10) || 1600; // 1600=live, 1500=prematch
-  const t0 = Date.now();
-  try {
-    const snap = await fetchFonbetSnapshot(scope);
-    const events = normalizeFonbet(snap);
-    return res.json({
-      ok: true,
-      bookmaker: "fonbet",
-      scope,
-      eventsCount: events.length,
-      ms: Date.now() - t0,
-      events,
-    });
-  } catch (e) {
-    return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
-  }
-});
+// Универсальный handler для всех движков на Fonbet-платформе
+function makeEngineHandler(engine) {
+  return async (req, res) => {
+    if (TOKEN && req.headers["x-token"] !== TOKEN) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    const scope = parseInt(req.query.scope, 10) || ENGINE_CONFIG[engine].defaultScope;
+    const t0 = Date.now();
+    try {
+      const snap = await fetchEngineSnapshot(engine, scope);
+      const events = normalizeEngine(snap);
+      return res.json({
+        ok: true,
+        bookmaker: engine,
+        scope,
+        eventsCount: events.length,
+        ms: Date.now() - t0,
+        events,
+      });
+    } catch (e) {
+      return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
+    }
+  };
+}
+
+app.get("/fonbet", makeEngineHandler("fonbet"));
+app.get("/pari",   makeEngineHandler("pari"));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}, proxies=${PROXIES.length}`));
 
