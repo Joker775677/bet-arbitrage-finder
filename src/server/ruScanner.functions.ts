@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { findArbitrages, type OddRow, type Arb } from "@/lib/arbitrage";
 
 const FIRECRAWL = "https://api.firecrawl.dev/v2/scrape";
+const FIRECRAWL_FETCH_TIMEOUT_MS = 43000;
+const FIRECRAWL_RENDER_TIMEOUT_MS = 41000;
+const LIST_FALLBACK_BUDGET_MS = 12000;
 
 interface RawEvent {
   bookmaker: string;
@@ -24,7 +27,7 @@ async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) throw new Error("FIRECRAWL_API_KEY not configured");
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 55000);
+  const t = setTimeout(() => ctrl.abort(), FIRECRAWL_FETCH_TIMEOUT_MS);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
@@ -37,7 +40,7 @@ async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
         waitFor,
         maxAge: 120000,
         removeBase64Images: true,
-        timeout: 50000,
+        timeout: FIRECRAWL_RENDER_TIMEOUT_MS,
         location: { country: "RU", languages: ["ru-RU"] },
         proxy: "stealth",
         mobile: true,
@@ -52,9 +55,9 @@ async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
 }
 
 async function fcScrape(url: string, waitFor = 4000): Promise<string> {
-  // Retry on timeout / transient failures — РУ-БК капризные
+  // Stealth proxy requests are slow and expensive; keep each source under the server timeout.
   let lastErr: any;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 1; attempt++) {
     try {
       const md = await fcScrapeOnce(url, waitFor);
       if (md && md.length > 200) return md;
@@ -356,8 +359,22 @@ function numberFromText(text: string): number | undefined {
 function oddFromText(text: string): number | undefined {
   const all = text.replace(/,/g, ".").match(/\d{1,3}(?:\.\d{1,3})?/g);
   if (!all?.length) return undefined;
-  const n = Number(all[all.length - 1]);
+  const candidates = all.filter((token) => token.includes(".")).map(Number).filter(validOdd);
+  if (!candidates.length) return undefined;
+  const n = candidates[candidates.length - 1];
   return validOdd(n) ? n : undefined;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => { t = setTimeout(() => resolve(null), ms); }),
+    ]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
 }
 
 function addMarket(markets: RawMarket[], market: string, selections: { outcome: string; odds?: number }[]) {
@@ -1151,7 +1168,7 @@ async function scanOneSource(s: RuSource): Promise<SourceScanResult> {
                   : parseGenericLine(clean(md), s.name);
     if (!events.length) {
       const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
-      const list = await fcExtractList(s.url, sportHint);
+      const list = await withTimeout(fcExtractList(s.url, sportHint), LIST_FALLBACK_BUDGET_MS);
       events = eventsFromExtractedList(list, s.name, s.url, sportHint);
     }
     return { name: s.name, url: s.url, events, ms: Date.now() - t0 };
