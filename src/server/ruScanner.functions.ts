@@ -359,7 +359,7 @@ function numberFromText(text: string): number | undefined {
 function oddFromText(text: string): number | undefined {
   const all = text.replace(/,/g, ".").match(/\d{1,3}(?:\.\d{1,3})?/g);
   if (!all?.length) return undefined;
-  const candidates = all.map(Number).filter(validOdd);
+  const candidates = all.filter((token) => token.includes(".")).map(Number).filter(validOdd);
   if (!candidates.length) return undefined;
   const n = candidates[candidates.length - 1];
   return validOdd(n) ? n : undefined;
