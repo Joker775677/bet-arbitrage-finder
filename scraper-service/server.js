@@ -286,39 +286,45 @@ async function fetchLeonSnapshots() {
   return out;
 }
 
-function mapLeonRunner(marketName, runnerName) {
-  const m = (marketName || "").toLowerCase();
-  const r = (runnerName || "").toLowerCase().trim();
-  // 1X2
-  if (m.includes("исход") || m.includes("победитель") || m === "1x2" || m.includes("основной")) {
-    if (r === "1" || r === "w1" || r === "п1" || r.includes("победа 1")) return { market: "1X2", outcome: "1" };
-    if (r === "2" || r === "w2" || r === "п2" || r.includes("победа 2")) return { market: "1X2", outcome: "2" };
-    if (r === "x" || r === "х" || r === "ничья" || r === "draw") return { market: "1X2", outcome: "X" };
+function mapLeonMarket(market, runner) {
+  const name = (market.name || "").toLowerCase();
+  const tag = market.typeTag || "";
+  const tags = runner.tags || [];
+  const hcap = runner.handicap ?? market.handicap;
+
+  // 1X2 — основной исход (исключаем "Кто забьет N-й гол")
+  if (tag === "REGULAR" && (name.includes("исход") || name.includes("1х2") || name.includes("1x2"))) {
+    if (tags.includes("HOME")) return { market: "1X2", outcome: "1" };
+    if (tags.includes("DRAW")) return { market: "1X2", outcome: "X" };
+    if (tags.includes("AWAY")) return { market: "1X2", outcome: "2" };
   }
   // Двойной шанс
-  if (m.includes("двойной") || m.includes("double chance")) {
-    if (r.includes("1x") || r.includes("1х") || r.includes("1 или x") || r.includes("1 или х")) return { market: "DC", outcome: "1X" };
-    if (r === "12" || r.includes("1 или 2") || r.includes("без ничьи")) return { market: "DC", outcome: "12" };
-    if (r.includes("x2") || r.includes("х2") || r.includes("x или 2") || r.includes("х или 2")) return { market: "DC", outcome: "X2" };
+  if (name.includes("двойной")) {
+    if (tags.includes("HOME_OR_DRAW") || tags.includes("1X")) return { market: "DC", outcome: "1X" };
+    if (tags.includes("HOME_OR_AWAY") || tags.includes("12")) return { market: "DC", outcome: "12" };
+    if (tags.includes("DRAW_OR_AWAY") || tags.includes("X2")) return { market: "DC", outcome: "X2" };
   }
   // Обе забьют
-  if (m.includes("обе") && m.includes("заб")) {
-    if (r === "да" || r === "yes" || r.includes("да")) return { market: "BTTS", outcome: "YES" };
-    if (r === "нет" || r === "no" || r.includes("нет")) return { market: "BTTS", outcome: "NO" };
+  if (name.includes("обе") && name.includes("заб")) {
+    if (tags.includes("YES")) return { market: "BTTS", outcome: "YES" };
+    if (tags.includes("NO"))  return { market: "BTTS", outcome: "NO" };
   }
-  // Тотал (общий, не индивидуальный)
-  if (m.includes("тотал") && !m.includes("инд") && !m.includes("команд")) {
-    const num = (runnerName.match(/[+-]?\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", ".");
-    if (!num) return null;
-    if (r.includes("боль") || r.startsWith("over") || r.startsWith("б ") || r.startsWith("б(")) return { market: "TOTAL", outcome: `OVER ${num}` };
-    if (r.includes("мень") || r.startsWith("under") || r.startsWith("м ") || r.startsWith("м(")) return { market: "TOTAL", outcome: `UNDER ${num}` };
+  // Тоталы
+  if (tag === "TOTAL" && hcap != null) {
+    const isTeam1 = name.includes("хозя") || name.includes("команд 1") || name.includes("1-й команды");
+    const isTeam2 = name.includes("гост") || name.includes("команд 2") || name.includes("2-й команды");
+    const isHalf  = name.includes("тайм");
+    if (isHalf) return null; // пока пропускаем тоталы по таймам
+    const mk = isTeam1 ? "TEAM_TOTAL_1" : isTeam2 ? "TEAM_TOTAL_2" : "TOTAL";
+    if (tags.includes("OVER"))  return { market: mk, outcome: `OVER ${hcap}` };
+    if (tags.includes("UNDER")) return { market: mk, outcome: `UNDER ${hcap}` };
   }
-  // Фора
-  if (m.includes("фора") || m.includes("гандикап") || m.includes("handicap")) {
-    const num = (runnerName.match(/[+-]?\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", ".");
-    if (!num) return null;
-    if (/(^|[^\d])(1|ф1|фора 1|команда 1|home)/i.test(r)) return { market: "HANDICAP", outcome: `1 ${num}` };
-    if (/(^|[^\d])(2|ф2|фора 2|команда 2|away)/i.test(r)) return { market: "HANDICAP", outcome: `2 ${num}` };
+  // Фора (включая азиатскую)
+  if (tag === "HANDICAP" && hcap != null) {
+    const isHalf = name.includes("тайм");
+    if (isHalf) return null;
+    if (tags.includes("HOME")) return { market: "HANDICAP", outcome: `1 ${hcap}` };
+    if (tags.includes("AWAY")) return { market: "HANDICAP", outcome: `2 ${hcap}` };
   }
   return null;
 }
@@ -327,44 +333,46 @@ function normalizeLeon(snapshots) {
   const out = [];
   const byId = new Map();
   for (const data of snapshots) {
-    // Leon: {sports: [{id, name, regions: [{leagues: [{events:[...]}]}]}]}
-    for (const sport of data.sports || []) {
-      for (const region of sport.regions || []) {
-        for (const league of region.leagues || []) {
-          for (const ev of league.events || []) {
-            if (byId.has(ev.id)) continue;
-            const comps = ev.competitors || [];
-            const home = comps.find((c) => c.homeAway === "HOME") || comps[0];
-            const away = comps.find((c) => c.homeAway === "AWAY") || comps[1];
-            if (!home?.name || !away?.name) continue;
-            const odds = [];
-            for (const market of ev.markets || []) {
-              for (const r of market.runners || []) {
-                const price = typeof r.priceDec === "number" ? r.priceDec
-                  : typeof r.price === "number" ? r.price
-                  : Number(r.priceStr);
-                if (!Number.isFinite(price) || price < 1.01) continue;
-                const mapped = mapLeonRunner(market.name, r.name);
-                if (!mapped) continue;
-                odds.push({ market: mapped.market, outcome: mapped.outcome, odds: price });
-              }
-            }
-            if (!odds.length) continue;
-            byId.set(ev.id, true);
-            out.push({
-              eventId: ev.id,
-              sport: sport.name || null,
-              tournament: [region.name, league.name].filter(Boolean).join(". ") || null,
-              team1: home.name,
-              team2: away.name,
-              eventName: `${home.name} — ${away.name}`,
-              startTime: ev.kickoff ? new Date(ev.kickoff).toISOString() : null,
-              live: !!ev.open,
-              odds,
-            });
+    for (const ev of data.events || []) {
+      if (byId.has(ev.id)) continue;
+      const comps = ev.competitors || [];
+      const home = comps.find((c) => c.homeAway === "HOME") || comps[0];
+      const away = comps.find((c) => c.homeAway === "AWAY") || comps[1];
+      if (!home?.name || !away?.name) continue;
+      const odds = [];
+      for (const market of ev.markets || []) {
+        if (market.open === false) continue;
+        for (const r of market.runners || []) {
+          if (r.open === false) continue;
+          const price = typeof r.price === "number" ? r.price : Number(r.priceStr);
+          if (!Number.isFinite(price) || price < 1.01) continue;
+          const mapped = mapLeonMarket(market, r);
+          if (!mapped) continue;
+          // дедуп по market+outcome (берём лучший)
+          const existing = odds.find((o) => o.market === mapped.market && o.outcome === mapped.outcome);
+          if (existing) {
+            if (price > existing.odds) existing.odds = price;
+          } else {
+            odds.push({ market: mapped.market, outcome: mapped.outcome, odds: price });
           }
         }
       }
+      if (!odds.length) continue;
+      byId.set(ev.id, true);
+      const league = ev.league || {};
+      const sport = league.sport || {};
+      const region = league.region || {};
+      out.push({
+        eventId: ev.id,
+        sport: sport.name || null,
+        tournament: [region.name, league.name].filter(Boolean).join(". ") || null,
+        team1: home.name,
+        team2: away.name,
+        eventName: `${home.name} — ${away.name}`,
+        startTime: ev.kickoff ? new Date(ev.kickoff).toISOString() : null,
+        live: !!ev.open,
+        odds,
+      });
     }
   }
   return out;
