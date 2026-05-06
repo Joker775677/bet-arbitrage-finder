@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 import { persistRuScan } from "@/server/ruPersist.functions";
+import { importFonbet } from "@/server/fonbetImport.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "lucide-react";
+import { Database, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/ru-live")({
   head: () => ({ meta: [{ title: "RU Live Scanner — ArbScope" }] }),
@@ -43,6 +44,8 @@ function RuLivePage() {
   const scanOne = useServerFn(scanRuSource);
   const finalize = useServerFn(finalizeRuScan);
   const persist = useServerFn(persistRuScan);
+  const importFb = useServerFn(importFonbet);
+  const [fbBusy, setFbBusy] = useState(false);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
@@ -97,6 +100,21 @@ function RuLivePage() {
     }
   }, [running, scanOne, finalize, persist, stake, minRoi]);
 
+  const runFonbet = useCallback(async () => {
+    if (fbBusy) return;
+    setFbBusy(true);
+    try {
+      const res = await importFb({});
+      toast.success(
+        `Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`,
+      );
+    } catch (e: any) {
+      toast.error(`Fonbet API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setFbBusy(false);
+    }
+  }, [fbBusy, importFb]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
@@ -150,10 +168,16 @@ function RuLivePage() {
             <Label>Мин. ROI, %</Label>
             <Input type="number" step="0.1" value={minRoi} onChange={(e) => setMinRoi(Number(e.target.value) || 0)} disabled={running} />
           </div>
-          <Button onClick={run} disabled={running} size="lg">
-            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
-            {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={run} disabled={running} size="lg">
+              {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
+              {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
+            </Button>
+            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet — ~3000 матчей за 1 сек">
+              {fbBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Fonbet API
+            </Button>
+          </div>
         </div>
       </Card>
 
