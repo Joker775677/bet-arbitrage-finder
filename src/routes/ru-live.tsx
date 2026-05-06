@@ -81,7 +81,7 @@ function RuLivePage() {
           error: stat.error,
         };
       }));
-      setR({ ...res, topMatches: [] });
+      setR(res);
       const okCount = res.stats.filter((s) => !s.error && s.events > 0).length;
       const totalSaved = res.stats.reduce((a, s) => a + s.saved, 0);
       const totalOdds = res.stats.reduce((a, s) => a + s.odds, 0);
