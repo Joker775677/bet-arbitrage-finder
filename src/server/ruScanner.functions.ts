@@ -60,7 +60,7 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 60000);
+  const t = setTimeout(() => ctrl.abort(), 35000);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
@@ -135,7 +135,7 @@ async function fcExtractList(url: string, sportHint?: string): Promise<Extracted
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 90000);
+  const t = setTimeout(() => ctrl.abort(), 40000);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
@@ -185,11 +185,11 @@ async function fcExtractList(url: string, sportHint?: string): Promise<Extracted
           },
         }],
         onlyMainContent: true,
-        waitFor: 5000,
+        waitFor: 3000,
         maxAge: 0,
         storeInCache: false,
         removeBase64Images: true,
-        timeout: 85000,
+        timeout: 35000,
         location: { country: "RU", languages: ["ru-RU"] },
       }),
     });
