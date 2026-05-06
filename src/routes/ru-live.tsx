@@ -21,7 +21,7 @@ export const Route = createFileRoute("/ru-live")({
 
 type SourceStatus = "pending" | "scanning" | "done" | "error";
 interface SourceState {
-  source: RuSource;
+  source: { name: string; url: string };
   status: SourceStatus;
   events: number;
   ms?: number;
@@ -29,7 +29,13 @@ interface SourceState {
 }
 
 type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
-const SCAN_CONCURRENCY = 2;
+type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
+
+const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string }[] = [
+  { name: "Fonbet", key: "fonbet", url: "https://www.fon.bet/live/" },
+  { name: "Pari",   key: "pari",   url: "https://pari.ru/live/" },
+  { name: "Leon",   key: "leon",   url: "https://leon.ru/live/" },
+];
 
 interface DbEventRow {
   id: string;
@@ -41,9 +47,7 @@ interface DbEventRow {
 }
 
 function RuLivePage() {
-  const scanOne = useServerFn(scanRuSource);
-  const finalize = useServerFn(finalizeRuScan);
-  const persist = useServerFn(persistRuScan);
+  const scanAll = useServerFn(scanAllAndFindArbs);
   const importFb = useServerFn(importFonbet);
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
@@ -56,7 +60,7 @@ function RuLivePage() {
   const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
   const [dbCount, setDbCount] = useState(0);
   const [states, setStates] = useState<SourceState[]>(
-    RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })),
+    ENGINE_LIST.map((s) => ({ source: { name: s.name, url: s.url }, status: "pending", events: 0 })),
   );
   const [r, setR] = useState<FinalizeResult | null>(null);
 
@@ -64,45 +68,41 @@ function RuLivePage() {
     if (running) return;
     setRunning(true);
     setR(null);
-    setStates(RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })));
+    setStates(ENGINE_LIST.map((s) => ({ source: { name: s.name, url: s.url }, status: "scanning", events: 0 })));
     try {
-      const results: Awaited<ReturnType<typeof scanOne>>[] = [];
-      for (let start = 0; start < RU_SOURCES.length; start += SCAN_CONCURRENCY) {
-        const batch = RU_SOURCES.slice(start, start + SCAN_CONCURRENCY);
-        setStates((prev) => prev.map((p, i) => i >= start && i < start + batch.length ? { ...p, status: "scanning" } : p));
-        const batchResults = await Promise.all(batch.map(async (source, offset) => {
-          const idx = start + offset;
-          try {
-            const res = await scanOne({ data: { source } });
-            setStates((prev) => prev.map((p, i) => i === idx
-              ? { ...p, status: res.error ? "error" : "done", events: res.events.length, ms: res.ms, error: res.error }
-              : p));
-            return res;
-          } catch (e: any) {
-            setStates((prev) => prev.map((p, i) => i === idx
-              ? { ...p, status: "error", error: e?.message ?? "fail" }
-              : p));
-            return { name: source.name, url: source.url, events: [], error: e?.message ?? "fail", ms: 0 };
-          }
-        }));
-        results.push(...batchResults);
-      }
-      const fin = await finalize({ data: { stake, minRoi, results } });
-      setR(fin);
-      const ok = results.filter((x) => x.events.length > 0).length;
-      // Save to DB (upsert + cleanup older than 24h)
-      try {
-        const saved = await persist({ data: { results } });
-        toast.success(`Готово: ${fin.arbs.length} вилок · ${ok}/${results.length} БК · в БД: ${saved.savedEvents} событий, ${saved.savedOdds} коэф.`);
-      } catch (e: any) {
-        toast.error(`Скан ОК, но в БД не записалось: ${e?.message ?? "ошибка"}`);
-      }
+      const res: ScanResult = await scanAll({ data: { stake, minRoi } });
+      // обновляем статусы по статам
+      setStates(ENGINE_LIST.map((s) => {
+        const stat = res.stats.find((x) => x.bookmaker === s.key);
+        if (!stat) return { source: { name: s.name, url: s.url }, status: "error", events: 0, error: "no data" };
+        return {
+          source: { name: s.name, url: s.url },
+          status: stat.error ? "error" : "done",
+          events: stat.events,
+          ms: stat.ms,
+          error: stat.error,
+        };
+      }));
+      // адаптируем под FinalizeResult-формат
+      setR({
+        arbs: res.arbs,
+        stats: res.stats.map((s) => ({ bookmaker: s.bookmaker, url: "", events: s.events, error: s.error })),
+        totalOdds: res.totalOdds,
+        matchedEvents: res.matchedEvents,
+        topMatches: [],
+        scannedAt: res.scannedAt,
+      } as unknown as FinalizeResult);
+      const okCount = res.stats.filter((s) => !s.error && s.events > 0).length;
+      const totalSaved = res.stats.reduce((a, s) => a + s.saved, 0);
+      const totalOdds = res.stats.reduce((a, s) => a + s.odds, 0);
+      toast.success(`Готово: ${res.arbs.length} вилок · ${okCount}/${res.stats.length} БК · в БД: ${totalSaved} событий, ${totalOdds} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка сканирования");
+      setStates((prev) => prev.map((p) => p.status === "scanning" ? { ...p, status: "error", error: "fail" } : p));
     } finally {
       setRunning(false);
     }
-  }, [running, scanOne, finalize, persist, stake, minRoi]);
+  }, [running, scanAll, stake, minRoi]);
 
   const runFonbet = useCallback(async () => {
     if (fbBusy) return;
