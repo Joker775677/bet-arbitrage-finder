@@ -60,11 +60,20 @@ export function findArbitrages(
   totalStake = 1000,
   minRoi = 0,
 ): Arb[] {
-  // Group by event + market
+  // Group by event + market (+ линия для гандикапов/тоталов)
   const groups = new Map<string, OddRow[]>();
   for (const o of odds) {
     if (JUNK_TEAM_RE.test(o.event_name)) continue;
-    const key = `${norm(o.sport)}|${norm(o.event_name)}|${norm(o.market)}`;
+    const m = o.market.toUpperCase();
+    let groupMarket = o.market;
+    if (m === "HANDICAP" || m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL")) {
+      // outcome выглядит как "1 -1.5" / "Over 2.5" / "Under 2.5"
+      const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
+      const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
+      if (line === null) continue;
+      groupMarket = `${o.market}@${line}`;
+    }
+    const key = `${norm(o.sport)}|${norm(o.event_name)}|${norm(groupMarket)}`;
     const arr = groups.get(key) ?? [];
     arr.push(o);
     groups.set(key, arr);
