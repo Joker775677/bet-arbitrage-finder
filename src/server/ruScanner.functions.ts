@@ -185,11 +185,11 @@ async function fcExtractList(url: string, sportHint?: string): Promise<Extracted
           },
         }],
         onlyMainContent: true,
-        waitFor: 5000,
+        waitFor: 3000,
         maxAge: 0,
         storeInCache: false,
         removeBase64Images: true,
-        timeout: 85000,
+        timeout: 35000,
         location: { country: "RU", languages: ["ru-RU"] },
       }),
     });
