@@ -107,15 +107,26 @@ function RuLivePage() {
     setFbBusy(true);
     try {
       const res = await importFb({});
-      toast.success(
-        `Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`,
-      );
+      toast.success(`Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
     } catch (e: any) {
       toast.error(`Fonbet API: ${e?.message ?? "ошибка"}`);
     } finally {
       setFbBusy(false);
     }
   }, [fbBusy, importFb]);
+
+  const runPari = useCallback(async () => {
+    if (prBusy) return;
+    setPrBusy(true);
+    try {
+      const res = await importPr({});
+      toast.success(`Pari API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Pari API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setPrBusy(false);
+    }
+  }, [prBusy, importPr]);
 
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
