@@ -133,6 +133,99 @@ export type Database = {
           },
         ]
       }
+      scan_runs: {
+        Row: {
+          arbs_found: number
+          bookmakers_count: number
+          duration_ms: number | null
+          error: string | null
+          events_scanned: number
+          finished_at: string | null
+          id: string
+          requests_remaining: string | null
+          sports_scanned: string[]
+          started_at: string
+        }
+        Insert: {
+          arbs_found?: number
+          bookmakers_count?: number
+          duration_ms?: number | null
+          error?: string | null
+          events_scanned?: number
+          finished_at?: string | null
+          id?: string
+          requests_remaining?: string | null
+          sports_scanned?: string[]
+          started_at?: string
+        }
+        Update: {
+          arbs_found?: number
+          bookmakers_count?: number
+          duration_ms?: number | null
+          error?: string | null
+          events_scanned?: number
+          finished_at?: string | null
+          id?: string
+          requests_remaining?: string | null
+          sports_scanned?: string[]
+          started_at?: string
+        }
+        Relationships: []
+      }
+      surebets: {
+        Row: {
+          arb_percent: number
+          bookmakers: string[]
+          event_name: string
+          event_time: string | null
+          id: string
+          legs: Json
+          market: string
+          match_key: string
+          profit: number
+          roi: number
+          scanned_at: string
+          source: string
+          sport: string
+          total_stake: number
+          tournament: string | null
+        }
+        Insert: {
+          arb_percent: number
+          bookmakers?: string[]
+          event_name: string
+          event_time?: string | null
+          id?: string
+          legs: Json
+          market: string
+          match_key: string
+          profit: number
+          roi: number
+          scanned_at?: string
+          source?: string
+          sport: string
+          total_stake: number
+          tournament?: string | null
+        }
+        Update: {
+          arb_percent?: number
+          bookmakers?: string[]
+          event_name?: string
+          event_time?: string | null
+          id?: string
+          legs?: Json
+          market?: string
+          match_key?: string
+          profit?: number
+          roi?: number
+          scanned_at?: string
+          source?: string
+          sport?: string
+          total_stake?: number
+          tournament?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
