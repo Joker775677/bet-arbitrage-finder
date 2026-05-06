@@ -5,6 +5,9 @@
 import express from "express";
 import { chromium } from "playwright";
 import TurndownService from "turndown";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { fetch as undiciFetch, ProxyAgent } from "undici";
+import zlib from "zlib";
 
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.SCRAPER_TOKEN || "";
