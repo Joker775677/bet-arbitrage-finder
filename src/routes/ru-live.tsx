@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 import { persistRuScan } from "@/server/ruPersist.functions";
+import { importFonbet } from "@/server/fonbetImport.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "lucide-react";
+import { Database, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/ru-live")({
   head: () => ({ meta: [{ title: "RU Live Scanner — ArbScope" }] }),
