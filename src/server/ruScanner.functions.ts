@@ -50,6 +50,105 @@ async function fcScrape(url: string, waitFor = 2500): Promise<string> {
   }
 }
 
+interface ExtractedEventJSON {
+  team1?: string;
+  team2?: string;
+  markets?: { name?: string; selections?: { outcome?: string; odds?: number }[] }[];
+}
+
+async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return null;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const r = await fetch(FIRECRAWL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        url,
+        formats: [{
+          type: "json",
+          prompt: "Extract sports betting event from this bookmaker page. Return team1, team2 (exact names), and a 'markets' array. For each market include name (e.g. 'Победитель', 'Фора 5.5', 'Тотал 150.5', '1 четверть Фора 2.5') and selections array with {outcome, odds}. outcome must be one of: '1','2','X','1X','12','X2','Б','М','Ф1 -5.5','Ф1 5.5','Ф2 -5.5','Ф2 5.5' etc. Include ALL handicap and total markets visible (main, quarters, halves). odds must be decimal numbers > 1.01.",
+          schema: {
+            type: "object",
+            properties: {
+              team1: { type: "string" },
+              team2: { type: "string" },
+              markets: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    selections: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { outcome: { type: "string" }, odds: { type: "number" } },
+                        required: ["outcome", "odds"],
+                      },
+                    },
+                  },
+                  required: ["name", "selections"],
+                },
+              },
+            },
+            required: ["team1", "team2", "markets"],
+          },
+        }],
+        onlyMainContent: true,
+        waitFor: 4000,
+        maxAge: 0,
+        storeInCache: false,
+        removeBase64Images: true,
+        timeout: 28000,
+        location: { country: "RU", languages: ["ru-RU"] },
+      }),
+    });
+    const j: any = await r.json();
+    if (!j.success) {
+      console.log(`[ruScanner] fcExtractEvent failed for ${url}: ${JSON.stringify(j).slice(0, 200)}`);
+      return null;
+    }
+    return (j.data?.json ?? j.data?.extract ?? null) as ExtractedEventJSON | null;
+  } catch (e: any) {
+    console.log(`[ruScanner] fcExtractEvent error for ${url}: ${e?.message}`);
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function eventFromExtracted(
+  extracted: ExtractedEventJSON | null,
+  bookmaker: string,
+  url: string,
+  sport: string,
+  league?: string,
+): RawEvent[] {
+  if (!extracted?.team1 || !extracted?.team2 || !Array.isArray(extracted.markets)) return [];
+  const markets: RawMarket[] = [];
+  for (const m of extracted.markets) {
+    if (!m?.name || !Array.isArray(m.selections)) continue;
+    addMarket(markets, m.name, m.selections.map((s) => ({
+      outcome: String(s?.outcome ?? "").trim(),
+      odds: typeof s?.odds === "number" ? s.odds : Number(s?.odds),
+    })).filter((s) => s.outcome));
+  }
+  if (!markets.length) return [];
+  return [{
+    bookmaker,
+    url,
+    sport,
+    team1: cleanParticipantName(extracted.team1),
+    team2: cleanParticipantName(extracted.team2),
+    markets,
+    league,
+  }];
+}
+
 // Strip base64 noise: long alphanumeric blobs without whitespace
 function clean(md: string): string[] {
   return md
