@@ -400,25 +400,24 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "marathon" | "tennisi" }[] = [
+    const sources: { name: string; url: string; parser: "generic" | "marathon" | "tennisi" | "betboom" }[] = [
       { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
       { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "generic" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
       { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
-      { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "generic" },
+      { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "betboom" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url);
+          const md = await fcScrape(s.url, s.parser === "betboom" ? 12000 : 6000);
           const events =
-            s.parser === "marathon"
-              ? parseMarathonbet(md, s.name)
-              : s.parser === "tennisi"
-                ? parseTennisi(md, s.name)
-                : parseGenericLine(clean(md), s.name);
+            s.parser === "marathon" ? parseMarathonbet(md, s.name)
+              : s.parser === "tennisi" ? parseTennisi(md, s.name)
+                : s.parser === "betboom" ? parseBetBoom(md, s.name)
+                  : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
