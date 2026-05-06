@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { findArbitrages, type OddRow, type Arb } from "@/lib/arbitrage";
+import { findArbitrages, findNearArbs, type OddRow, type Arb, type NearArb } from "@/lib/arbitrage";
 
 interface EngineOdd { market: string; outcome: string; odds: number }
 interface EngineEvent {
@@ -193,40 +193,54 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
             outcome: o.outcome,
             odds: o.odds,
             url: `${ENGINES[f.source as EngineKey].urlBase}${ev.eventId}`,
+            live: !!ev.live,
           });
         }
       }
     }
 
-    // 4. Ищем вилки
+    // 4. Ищем вилки + почти-вилки
     const arbsRaw = findArbitrages(odds, data.stake, data.minRoi);
     const arbs: Arb[] = arbsRaw.map((a) => ({
+      ...a,
+      event_name: displayMap.get(a.event_name) ?? a.event_name,
+    }));
+    const nearArbsRaw = findNearArbs(odds, 30);
+    const nearArbs: NearArb[] = nearArbsRaw.map((a) => ({
       ...a,
       event_name: displayMap.get(a.event_name) ?? a.event_name,
     }));
 
     try { await supabaseAdmin.rpc("cleanup_old_ru_data"); } catch {}
 
-    const matchedEventsCount = (() => {
-      const evToBm = new Map<string, Set<string>>();
-      for (const o of odds) {
-        let s = evToBm.get(o.event_name);
-        if (!s) { s = new Set(); evToBm.set(o.event_name, s); }
-        s.add(o.bookmaker_id);
-      }
-      let n = 0;
-      for (const s of evToBm.values()) if (s.size >= 2) n++;
-      return n;
-    })();
+    // Считаем совпадающие события (≥2 БК) с разбивкой live/prematch
+    const evMeta = new Map<string, { bms: Set<string>; live: boolean }>();
+    for (const o of odds) {
+      let s = evMeta.get(o.event_name);
+      if (!s) { s = { bms: new Set(), live: !!o.live }; evMeta.set(o.event_name, s); }
+      s.bms.add(o.bookmaker_id);
+      if (o.live) s.live = true;
+    }
+    let matchedLive = 0, matchedPrematch = 0;
+    for (const m of evMeta.values()) {
+      if (m.bms.size < 2) continue;
+      if (m.live) matchedLive++; else matchedPrematch++;
+    }
 
     return {
       ok: true,
       totalMs: Date.now() - t0,
       stats,
       totalOdds: odds.length,
-      uniqueEvents: new Set(odds.map((o) => o.event_name)).size,
-      matchedEvents: matchedEventsCount,
+      uniqueEvents: evMeta.size,
+      matchedEvents: matchedLive + matchedPrematch,
+      matchedLive,
+      matchedPrematch,
       arbs,
+      arbsLive: arbs.filter((a) => a.live).length,
+      arbsPrematch: arbs.filter((a) => !a.live).length,
+      nearArbs,
       scannedAt: new Date().toISOString(),
     };
   });
+
