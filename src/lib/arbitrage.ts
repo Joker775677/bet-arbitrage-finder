@@ -13,6 +13,7 @@ export interface OddRow {
   outcome: string;
   odds: number;
   url?: string;
+  live?: boolean;
 }
 
 export interface ArbLeg {
