@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
+import { persistRuScan } from "@/server/ruPersist.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { Database } from "lucide-react";
 
 export const Route = createFileRoute("/ru-live")({
   head: () => ({ meta: [{ title: "RU Live Scanner — ArbScope" }] }),
@@ -27,12 +30,24 @@ interface SourceState {
 type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
 const SCAN_CONCURRENCY = 2;
 
+interface DbEventRow {
+  id: string;
+  source: string;
+  event_name: string;
+  league: string | null;
+  sport: string | null;
+  scanned_at: string;
+}
+
 function RuLivePage() {
   const scanOne = useServerFn(scanRuSource);
   const finalize = useServerFn(finalizeRuScan);
+  const persist = useServerFn(persistRuScan);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
+  const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
+  const [dbCount, setDbCount] = useState(0);
   const [states, setStates] = useState<SourceState[]>(
     RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })),
   );
@@ -68,13 +83,41 @@ function RuLivePage() {
       const fin = await finalize({ data: { stake, minRoi, results } });
       setR(fin);
       const ok = results.filter((x) => x.events.length > 0).length;
-      toast.success(`Готово: ${fin.arbs.length} вилок, ${ok}/${results.length} БК с событиями`);
+      // Save to DB (upsert + cleanup older than 24h)
+      try {
+        const saved = await persist({ data: { results } });
+        toast.success(`Готово: ${fin.arbs.length} вилок · ${ok}/${results.length} БК · в БД: ${saved.savedEvents} событий, ${saved.savedOdds} коэф.`);
+      } catch (e: any) {
+        toast.error(`Скан ОК, но в БД не записалось: ${e?.message ?? "ошибка"}`);
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка сканирования");
     } finally {
       setRunning(false);
     }
-  }, [running, scanOne, finalize, stake, minRoi]);
+  }, [running, scanOne, finalize, persist, stake, minRoi]);
+
+  // Load latest events from DB + subscribe to realtime
+  const loadDbEvents = useCallback(async () => {
+    const { data, count } = await supabase
+      .from("ru_events")
+      .select("id, source, event_name, league, sport, scanned_at", { count: "exact" })
+      .order("scanned_at", { ascending: false })
+      .limit(50);
+    setDbEvents((data ?? []) as DbEventRow[]);
+    setDbCount(count ?? 0);
+  }, []);
+
+  useEffect(() => {
+    void loadDbEvents();
+    const ch = supabase
+      .channel("ru_events_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ru_events" }, () => {
+        void loadDbEvents();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [loadDbEvents]);
 
   useEffect(() => {
     // первый автозапуск
@@ -169,6 +212,45 @@ function RuLivePage() {
               ⚠️ Коэффициенты у БК меняются каждые несколько секунд — это снимок на момент сканирования.
             </p>
           </>
+        )}
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            <h2 className="font-display text-lg font-semibold">База данных событий</h2>
+            <Badge variant="secondary">{dbCount}</Badge>
+            <span className="text-[11px] text-muted-foreground">realtime · автоочистка &gt; 24ч</span>
+          </div>
+        </div>
+        {dbEvents.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">Пока нет сохранённых событий. Запустите скан.</p>
+        ) : (
+          <div className="max-h-[400px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/80 backdrop-blur text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left">БК</th>
+                  <th className="px-3 py-2 text-left">Событие</th>
+                  <th className="px-3 py-2 text-left">Лига</th>
+                  <th className="px-3 py-2 text-left">Спорт</th>
+                  <th className="px-3 py-2 text-right">Когда</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dbEvents.map((ev) => (
+                  <tr key={ev.id} className="border-t border-border hover:bg-muted/30">
+                    <td className="px-3 py-1.5 font-medium">{ev.source}</td>
+                    <td className="px-3 py-1.5">{ev.event_name}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{ev.league ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{ev.sport ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs">{new Date(ev.scanned_at).toLocaleTimeString("ru")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
