@@ -32,6 +32,7 @@ const ENGINE_META = {
   fonbet: { path: "/fonbet?scope=1600", source: "fonbet", urlBase: "https://www.fon.bet/live/" },
   pari:   { path: "/pari?scope=2300",   source: "pari",   urlBase: "https://pari.ru/live/" },
   leon:   { path: "/leon",              source: "leon",   urlBase: "https://leon.ru/live/" },
+  zenit:  { path: "/zenit",             source: "zenit",  urlBase: "https://zenit.win/live/" },
 } as const;
 
 type EngineKey = keyof typeof ENGINE_META;
