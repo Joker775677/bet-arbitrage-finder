@@ -75,9 +75,9 @@ function RuLivePage() {
               </Button>
             </div>
             <div className="grid gap-2 md:grid-cols-2">
-              {r.stats.map((s) => (
+              {r.stats.map((s, idx) => (
                 <a
-                  key={`${s.bookmaker}-${s.url ?? ""}`}
+                  key={`${s.bookmaker}-${s.url ?? ""}-${idx}`}
                   href={s.url || "#"}
                   target="_blank"
                   rel="noreferrer"
