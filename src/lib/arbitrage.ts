@@ -158,6 +158,7 @@ export function findArbitrages(
       roi,
       totalStake,
       profit,
+      live: !!first.live,
     });
   }
 
@@ -165,5 +166,52 @@ export function findArbitrages(
   return arbs;
 }
 
+// Top-N "почти-вилки" — рынки полные, но margin >= 1. Полезно понимать, насколько мы близки.
+export function findNearArbs(odds: OddRow[], limit = 20): NearArb[] {
+  const groups = new Map<string, OddRow[]>();
+  for (const o of odds) {
+    if (JUNK_TEAM_RE.test(o.event_name)) continue;
+    const m = o.market.toUpperCase();
+    let groupMarket = o.market;
+    if (m === "HANDICAP" || m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL")) {
+      const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
+      const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
+      if (line === null) continue;
+      groupMarket = `${o.market}@${line}`;
+    }
+    const key = `${norm(o.sport)}|${norm(o.event_name)}|${norm(groupMarket)}`;
+    const arr = groups.get(key) ?? [];
+    arr.push(o);
+    groups.set(key, arr);
+  }
+  const out: NearArb[] = [];
+  for (const [key, rows] of groups) {
+    const bestByOutcome = new Map<string, OddRow>();
+    for (const r of rows) {
+      const k = norm(r.outcome);
+      const cur = bestByOutcome.get(k);
+      if (!cur || r.odds > cur.odds) bestByOutcome.set(k, r);
+    }
+    const need = expectedOutcomes(rows[0].market, rows);
+    if (bestByOutcome.size !== need) continue;
+    const distinctBms = new Set(Array.from(bestByOutcome.values()).map((r) => r.bookmaker_id));
+    if (distinctBms.size < 2) continue;
+    const legs = Array.from(bestByOutcome.values());
+    const arbPercent = legs.reduce((s, l) => s + 1 / l.odds, 0);
+    if (arbPercent < 1 || arbPercent > 1.05) continue; // только близкие к вилке
+    out.push({
+      key,
+      sport: rows[0].sport,
+      event_name: rows[0].event_name,
+      market: rows[0].market,
+      arbPercent,
+      live: !!rows[0].live,
+      legs: legs.map((l) => ({ outcome: l.outcome, odds: l.odds, bookmaker_name: l.bookmaker_name ?? "—", url: l.url })),
+    });
+  }
+  out.sort((a, b) => a.arbPercent - b.arbPercent);
+  return out.slice(0, limit);
+}
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
+
