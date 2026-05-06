@@ -39,6 +39,8 @@ async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
         removeBase64Images: true,
         timeout: 50000,
         location: { country: "RU", languages: ["ru-RU"] },
+        proxy: "stealth",
+        mobile: true,
       }),
     });
     const j: any = await r.json();
