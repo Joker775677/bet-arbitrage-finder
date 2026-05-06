@@ -195,7 +195,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
     const buckets = new Map<string, number[]>();
     for (let i = 0; i < rawEvs.length; i++) {
       const r = rawEvs[i];
-      const bk = `${r.dk}|${r.sportBucket}`;
+      const bk = r.dk; // только дата — спорт у разных БК записан по-разному
       let arr = buckets.get(bk);
       if (!arr) { arr = []; buckets.set(bk, arr); }
       arr.push(i);
