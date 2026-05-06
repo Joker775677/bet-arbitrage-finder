@@ -50,6 +50,7 @@ function RuLivePage() {
   const importFb = useServerFn(importFonbet);
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
+  const importZn = useServerFn(importZenit);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
