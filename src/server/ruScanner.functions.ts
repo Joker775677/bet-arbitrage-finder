@@ -969,7 +969,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
 
-    const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
+    const bookieResults: { name: string; url: string; events: RawEvent[]; error?: string }[] = [];
     await Promise.all(
       sources.map(async (s) => {
         try {
@@ -977,7 +977,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             const extracted = await fcExtractEvent(s.url);
             const events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
             console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets?.length ?? 0}`);
-            bookieResults.push({ name: s.name, events });
+            bookieResults.push({ name: s.name, url: s.url, events });
             return;
           }
           const md = await fcScrape(s.url, 2500);
@@ -989,9 +989,9 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
                     : s.parser === "zenit" ? parseZenit(md, s.name)
                       : s.parser === "fonbet" ? parseFonbet(md, s.name)
                         : parseGenericLine(clean(md), s.name);
-          bookieResults.push({ name: s.name, events });
+          bookieResults.push({ name: s.name, url: s.url, events });
         } catch (e: any) {
-          bookieResults.push({ name: s.name, events: [], error: e.message });
+          bookieResults.push({ name: s.name, url: s.url, events: [], error: e.message });
         }
       }),
     );
@@ -1119,6 +1119,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       arbs: arbsDisplay,
       stats: bookieResults.map((br) => ({
         bookmaker: br.name,
+        url: br.url,
         events: br.events.length,
         error: br.error,
       })),

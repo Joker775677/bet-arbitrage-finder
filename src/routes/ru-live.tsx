@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Radar, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Radar, RefreshCw, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,10 +67,22 @@ function RuLivePage() {
       {r && (
         <>
           <Card className="p-5">
-            <h2 className="font-display text-lg font-semibold mb-3">Источники</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold">Источники</h2>
+              <Button variant="outline" size="sm" onClick={() => m.mutate()} disabled={m.isPending}>
+                {m.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+                {m.isPending ? "Сканирую…" : "Повторить скан"}
+              </Button>
+            </div>
             <div className="grid gap-2 md:grid-cols-2">
-              {r.stats.map((s) => (
-                <div key={s.bookmaker} className="flex items-center justify-between rounded-md border border-border p-3">
+              {r.stats.map((s, idx) => (
+                <a
+                  key={`${s.bookmaker}-${s.url ?? ""}-${idx}`}
+                  href={s.url || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between rounded-md border border-border p-3 transition-colors hover:border-primary hover:bg-muted/40"
+                >
                   <div className="flex items-center gap-2">
                     {s.events > 0 ? (
                       <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -82,7 +94,7 @@ function RuLivePage() {
                   <Badge variant={s.events > 0 ? "default" : "destructive"} className="font-mono">
                     {s.events} событий
                   </Badge>
-                </div>
+                </a>
               ))}
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
