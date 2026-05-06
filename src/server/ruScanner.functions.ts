@@ -780,9 +780,19 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
 
     // Build OddRow entries; key events by canonical team pair
     const odds: OddRow[] = [];
+    const keyMeta = new Map<string, { sigA: string; sigB: string; dateKey: string; samples: Set<string> }>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
         const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
+        const sigA = teamSig(ev.team1);
+        const sigB = teamSig(ev.team2);
+        const [lo, hi] = sigA < sigB ? [sigA, sigB] : [sigB, sigA];
+        let meta = keyMeta.get(canonical.key);
+        if (!meta) {
+          meta = { sigA: lo, sigB: hi, dateKey: ev.dateKey ?? "date-any", samples: new Set() };
+          keyMeta.set(canonical.key, meta);
+        }
+        meta.samples.add(canonical.display);
         const markets = orientMarkets(ev.markets?.length ? ev.markets : legacyMarkets(ev.odds), canonical.flip);
         for (const market of markets) {
           for (const selection of market.selections) {
@@ -804,14 +814,30 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       }
     }
 
+    // Fuzzy-cluster canonical keys (handles "Спартак М" vs "Спартак Москва", etc.)
+    const { remap, merges } = clusterEventKeys(keyMeta);
+    if (merges.length) {
+      console.log(`[ruScanner] merged ${merges.length} fuzzy team-pair groups:`);
+      for (const m of merges.slice(0, 50)) {
+        console.log(`  • "${m.from}" → "${m.into}"`);
+      }
+    } else {
+      console.log("[ruScanner] no fuzzy merges this run");
+    }
+    for (const o of odds) {
+      o.event_name = remap.get(o.event_name) ?? o.event_name;
+      o.id = `${o.bookmaker_id}-${o.event_name}-${o.market}-${o.outcome}`;
+    }
+
     // Map canonical key → display name (prefer Russian)
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
         const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
+        const root = remap.get(canonical.key) ?? canonical.key;
         const isCyr = /[а-яё]/i.test(ev.team1);
-        if (!displayMap.has(canonical.key) || isCyr) {
-          displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
+        if (!displayMap.has(root) || isCyr) {
+          displayMap.set(root, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
         }
       }
     }
@@ -823,13 +849,13 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     }));
 
     // === Top matched events (present in 2+ bookies) ===
-    // Group canonical key → outcome → list of {bm, odds, url}
     type Pick = { bm: string; odds: number; url: string };
     const grouped = new Map<string, Map<string, Pick[]>>();
-    const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
+    const urlMap = new Map<string, Map<string, string>>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey).key;
+        const k0 = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey).key;
+        const k = remap.get(k0) ?? k0;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
