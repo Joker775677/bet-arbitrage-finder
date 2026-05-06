@@ -526,7 +526,7 @@ function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
       if (!s) continue;
       if (/^!\[/.test(s)) continue;
       if (/^\d+$/.test(s) || /^\d+:\d+/.test(s)) continue;
-      if (/^(?:1Т|2Т|перерыв|тайм|live|перерыв)/i.test(s)) continue;
+      if (/^(?:1Т|2Т|перерыв|тайм|live|перерыв|не начался|матч)/i.test(s)) continue;
       if (/^#{1,4}/.test(s)) break;
       if (/^[A-Za-zА-Яа-яё][A-Za-zА-Яа-яё0-9 .'’\-]{1,40}$/.test(s)) {
         names.unshift(s);
@@ -543,6 +543,7 @@ function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
       team1,
       team2,
       odds,
+      markets: legacyMarkets(odds),
       league: currentLeague,
     });
   }
