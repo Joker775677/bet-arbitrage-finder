@@ -374,8 +374,8 @@ function leagueSlugFromUrl(url: string): string | undefined {
 }
 
 function eventLeague(ev: RawEvent): string {
-  if (ev.league) return ev.league;
-  return leagueFromText(ev.url) ?? leagueSlugFromUrl(ev.url) ?? "any";
+  const fromLeague = ev.league ? leagueFromText(ev.league) : undefined;
+  return fromLeague ?? leagueFromText(ev.url) ?? leagueSlugFromUrl(ev.url) ?? (ev.league ? translit(ev.league.toLowerCase()).replace(/[^a-z0-9]/g, "-").slice(0, 30) : "any");
 }
 
 function canonicalEvent(team1: string, team2: string, league: string): { key: string; flip: boolean; display: string } {
