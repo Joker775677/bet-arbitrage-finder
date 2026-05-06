@@ -166,7 +166,7 @@ async function fetchEngineSnapshot(engine, scopeMarket) {
   return JSON.parse(text);
 }
 
-function normalizeFonbet(data) {
+function normalizeEngine(data) {
   const sportsById = new Map((data.sports || []).map(s => [s.id, s]));
   // Поднимаемся по parentIds от segment до root sport (kind === 'sport')
   function rootSport(sportId) {
