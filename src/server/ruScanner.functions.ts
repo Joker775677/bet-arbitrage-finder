@@ -1168,7 +1168,7 @@ async function scanOneSource(s: RuSource): Promise<SourceScanResult> {
                   : parseGenericLine(clean(md), s.name);
     if (!events.length) {
       const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
-      const list = await fcExtractList(s.url, sportHint);
+      const list = await withTimeout(fcExtractList(s.url, sportHint), LIST_FALLBACK_BUDGET_MS);
       events = eventsFromExtractedList(list, s.name, s.url, sportHint);
     }
     return { name: s.name, url: s.url, events, ms: Date.now() - t0 };
