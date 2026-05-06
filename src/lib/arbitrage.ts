@@ -38,7 +38,19 @@ export interface Arb {
   roi: number;       // (1/arbPercent - 1) * 100
   totalStake: number;
   profit: number;
+  live: boolean;
 }
+
+export interface NearArb {
+  key: string;
+  sport: string;
+  event_name: string;
+  market: string;
+  arbPercent: number; // > 1
+  legs: { outcome: string; odds: number; bookmaker_name: string; url?: string }[];
+  live: boolean;
+}
+
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
