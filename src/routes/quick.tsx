@@ -177,6 +177,33 @@ function QuickPage() {
         </p>
       </div>
 
+      <Card className="p-5 space-y-4 border-primary/30 bg-primary/5">
+        <div className="grid gap-1.5">
+          <Label className="flex items-center gap-2">
+            <ClipboardPaste className="h-4 w-4" />
+            Автопарсинг — вставьте текст с коэффициентами
+          </Label>
+          <Textarea
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            rows={4}
+            placeholder={"Winline 1=2.10 X=3.20 2=2.55\nBetcity П1 2.05 Х 3.40 П2 2.60"}
+            className="font-mono text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={applyPaste} disabled={!paste.trim()}>
+              <ClipboardPaste className="mr-1 h-4 w-4" /> Распознать и заполнить
+            </Button>
+            <Button size="sm" variant="ghost" onClick={async () => {
+              try { const t = await navigator.clipboard.readText(); setPaste(t); } catch { toast.error("Не удалось прочитать буфер"); }
+            }}>Вставить из буфера</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Поддерживает: <code>1=2.10</code>, <code>П1 2.10</code>, <code>X: 3.2</code>. Названия БК (Winline, Betcity и т.д.) распознаются автоматически.
+          </p>
+        </div>
+      </Card>
+
       <Card className="p-5 space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
           <div className="grid gap-1.5 md:col-span-2">
