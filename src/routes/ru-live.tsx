@@ -46,8 +46,10 @@ function RuLivePage() {
   const persist = useServerFn(persistRuScan);
   const importFb = useServerFn(importFonbet);
   const importPr = useServerFn(importPari);
+  const importLn = useServerFn(importLeon);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
+  const [lnBusy, setLnBusy] = useState(false);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
