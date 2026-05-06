@@ -624,6 +624,110 @@ function displayKey(key: string): string {
   return key.split("|").slice(1).join(" — ");
 }
 
+// === Fuzzy similarity (Dice coefficient on character bigrams) ===
+function bigrams(s: string): Set<string> {
+  const out = new Set<string>();
+  const t = s.replace(/_/g, "");
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+function dice(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const A = bigrams(a), B = bigrams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+// Token-level Jaccard for multi-word names
+function tokenJaccard(a: string, b: string): number {
+  const A = new Set(a.split("_").filter(Boolean));
+  const B = new Set(b.split("_").filter(Boolean));
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / new Set([...A, ...B]).size;
+}
+function teamSim(a: string, b: string): number {
+  if (a === b) return 1;
+  // accept either strong char similarity OR shared token
+  return Math.max(dice(a, b), tokenJaccard(a, b));
+}
+const SIM_THRESHOLD = 0.72;
+
+// Union-find
+class UF {
+  p = new Map<string, string>();
+  find(x: string): string {
+    if (!this.p.has(x)) { this.p.set(x, x); return x; }
+    let r = x;
+    while (this.p.get(r)! !== r) r = this.p.get(r)!;
+    let c = x;
+    while (this.p.get(c)! !== c) { const n = this.p.get(c)!; this.p.set(c, r); c = n; }
+    return r;
+  }
+  union(a: string, b: string) {
+    const ra = this.find(a), rb = this.find(b);
+    if (ra === rb) return;
+    // Keep lexicographically smaller as root for stability
+    if (ra < rb) this.p.set(rb, ra); else this.p.set(ra, rb);
+  }
+}
+
+// Cluster canonical keys by fuzzy team-pair similarity within same dateKey.
+// Returns map: originalKey → clusterRootKey, plus a list of merge logs.
+function clusterEventKeys(
+  meta: Map<string, { sigA: string; sigB: string; dateKey: string; samples: Set<string> }>,
+): { remap: Map<string, string>; merges: { from: string; into: string; sample: string }[] } {
+  const uf = new UF();
+  const keys = Array.from(meta.keys());
+  // Bucket by dateKey to limit O(n²) cost
+  const byDate = new Map<string, string[]>();
+  for (const k of keys) {
+    const d = meta.get(k)!.dateKey;
+    const arr = byDate.get(d) ?? [];
+    arr.push(k);
+    byDate.set(d, arr);
+  }
+  const merges: { from: string; into: string; sample: string }[] = [];
+  for (const [, group] of byDate) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const A = meta.get(group[i])!;
+        const B = meta.get(group[j])!;
+        // try both orientations
+        const direct = Math.min(teamSim(A.sigA, B.sigA), teamSim(A.sigB, B.sigB));
+        const flipped = Math.min(teamSim(A.sigA, B.sigB), teamSim(A.sigB, B.sigA));
+        const score = Math.max(direct, flipped);
+        if (score >= SIM_THRESHOLD) {
+          uf.union(group[i], group[j]);
+        }
+      }
+    }
+  }
+  const remap = new Map<string, string>();
+  for (const k of keys) remap.set(k, uf.find(k));
+  // Build merge log: for each non-trivial cluster, list members
+  const clusters = new Map<string, string[]>();
+  for (const k of keys) {
+    const r = uf.find(k);
+    const arr = clusters.get(r) ?? [];
+    arr.push(k);
+    clusters.set(r, arr);
+  }
+  for (const [root, members] of clusters) {
+    if (members.length < 2) continue;
+    const rootSample = Array.from(meta.get(root)!.samples)[0] ?? root;
+    for (const m of members) {
+      if (m === root) continue;
+      const sample = Array.from(meta.get(m)!.samples)[0] ?? m;
+      merges.push({ from: sample, into: rootSample, sample: m });
+    }
+  }
+  return { remap, merges };
+}
+
 function orientMarkets(markets: RawMarket[], flip: boolean): RawMarket[] {
   if (!flip) return markets;
   const swapOutcome = (outcome: string) => outcome
