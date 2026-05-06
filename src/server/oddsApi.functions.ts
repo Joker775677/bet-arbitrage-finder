@@ -17,6 +17,21 @@ export const DEFAULT_SPORTS = [
   "mma_mixed_martial_arts",
 ];
 
+// Allow-list of bookmaker keys (The Odds API keys). Only these BMs will be considered.
+// Source: user-selected RU/CIS bookmakers.
+export const ALLOWED_BOOKMAKERS = new Set<string>([
+  "betboom",
+  "betcity",
+  "leon",
+  "ligastavok",
+  "marathonbet", // alt for some
+  "melbet",
+  "olimp",
+  "winline",
+  "zenit",
+]);
+
+
 export interface LiveScanResult {
   arbs: Arb[];
   eventsScanned: number;
@@ -74,6 +89,8 @@ function eventsToOdds(events: any[]): { odds: OddRow[]; bookmakers: Set<string> 
   for (const ev of events) {
     const eventName = `${ev.home_team} vs ${ev.away_team}`;
     for (const bm of ev.bookmakers ?? []) {
+      // Filter to allow-listed bookmakers only
+      if (!ALLOWED_BOOKMAKERS.has(bm.key)) continue;
       bmSet.add(bm.title);
       for (const m of bm.markets ?? []) {
         for (const o of m.outcomes ?? []) {
@@ -149,7 +166,7 @@ export const scanAllAndSave = createServerFn({ method: "POST" })
     const key = process.env.ODDS_API_KEY;
     if (!key) throw new Error("ODDS_API_KEY is not configured");
     const sports = data.sports?.length ? data.sports : DEFAULT_SPORTS;
-    const regions = data.regions || "eu,uk,us";
+    const regions = data.regions || "eu,uk,us,au";
     const markets = data.markets || "h2h";
     const stake = data.stake ?? 1000;
     const minRoi = data.minRoi ?? 1;
