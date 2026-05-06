@@ -20,27 +20,34 @@ interface RawMarket {
   selections: { outcome: string; odds: number }[];
 }
 
-async function fcScrape(url: string, waitFor = 6000): Promise<string> {
+async function fcScrape(url: string, waitFor = 2500): Promise<string> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) throw new Error("FIRECRAWL_API_KEY not configured");
-  const r = await fetch(FIRECRAWL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      url,
-      formats: ["markdown"],
-      onlyMainContent: true,
-      waitFor,
-      maxAge: 0,
-      storeInCache: false,
-      removeBase64Images: true,
-      timeout: 90000,
-      location: { country: "RU", languages: ["ru-RU"] },
-    }),
-  });
-  const j: any = await r.json();
-  if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
-  return j.data?.markdown ?? "";
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 22000);
+  try {
+    const r = await fetch(FIRECRAWL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        url,
+        formats: ["markdown"],
+        onlyMainContent: true,
+        waitFor,
+        maxAge: 0,
+        storeInCache: false,
+        removeBase64Images: true,
+        timeout: 20000,
+        location: { country: "RU", languages: ["ru-RU"] },
+      }),
+    });
+    const j: any = await r.json();
+    if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
+    return j.data?.markdown ?? "";
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // Strip base64 noise: long alphanumeric blobs without whitespace
