@@ -266,11 +266,12 @@ function teamTokens(name: string): string[] {
   return toks.length ? toks : [translit(cleaned).replace(/\s+/g, "")];
 }
 
-// Signature = the longest, most "rare" token (heuristic: longest one wins)
+// Signature = ALL significant tokens, sorted and joined.
+// Strict matching: two team names match only if their full token sets are identical.
 function teamSig(name: string): string {
   const t = teamTokens(name);
   if (!t.length) return translit(name).replace(/\s+/g, "");
-  return [...t].sort((a, b) => b.length - a.length)[0];
+  return [...new Set(t)].sort().join("_");
 }
 
 function canonicalEvent(team1: string, team2: string, _dateKey?: string): { key: string; flip: boolean; display: string } {
