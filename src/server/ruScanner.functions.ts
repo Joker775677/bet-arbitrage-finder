@@ -160,6 +160,13 @@ const MONTHS: Record<string, string> = {
 };
 
 function parseDateKey(text: string): string | undefined {
+  const rel = text.toLowerCase();
+  const shift = /\b(?:завтра|tomorrow)\b/i.test(rel) ? 1 : /\b(?:сегодня|today)\b/i.test(rel) ? 0 : undefined;
+  if (shift !== undefined) {
+    const d = new Date();
+    d.setDate(d.getDate() + shift);
+    return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
   const numeric = text.match(/(?:^|[^\d.])(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?(?=\D|$)/);
   if (numeric) {
     const day = Number(numeric[1]);
@@ -413,6 +420,68 @@ function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
       odds,
       league: currentLeague,
     });
+  }
+  return out;
+}
+
+function parseLeon(md: string, bookmaker: string): RawEvent[] {
+  const out: RawEvent[] = [];
+  const lines = md.split("\n").map((l) => l.trim()).filter(Boolean);
+  let currentLeague: string | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^[А-Яа-яЁёA-Za-z].{3,80}$/.test(line) && !/^(?:1|2|X|Победитель|Тотал|Фора|Увеличенный)/i.test(line)) currentLeague = line;
+    if (!line.startsWith("[") || !line.includes("\\")) continue;
+    const block: string[] = [];
+    for (let j = i; j < Math.min(i + 8, lines.length); j++) {
+      block.push(lines[j]);
+      if (/\]\(https?:\/\/leon\.ru\/bets\//.test(lines[j])) break;
+    }
+    const joined = block.join(" ");
+    const m = joined.match(/^\[(.+?)\]\((https?:\/\/leon\.ru\/bets\/[^)]+)\)/);
+    if (!m) continue;
+    const parts = m[1].replace(/\\/g, "\n").split("\n").map(cleanParticipantName).filter(Boolean);
+    if (parts.length < 3) continue;
+    const [team1, team2] = parts;
+    const url = m[2];
+    if (isJunkEvent(team1, team2, url)) continue;
+    const oddsLine = lines.slice(i + block.length, i + block.length + 4).find((s) => /\d{1,2}\.\d{2}/.test(s)) ?? "";
+    const odds3 = parseOdds3(oddsLine);
+    const odds2 = odds3 ? undefined : parseOdds2(oddsLine);
+    const markets = odds3 ? legacyMarkets(odds3) : [];
+    if (odds2) addMarket(markets, "Победитель", [{ outcome: "1", odds: odds2[0] }, { outcome: "2", odds: odds2[1] }]);
+    if (markets.length) out.push({ bookmaker, url, sport: url.includes("/basketball/") ? "Basketball" : "Football", team1, team2, markets, league: currentLeague, dateKey: parseDateKey(parts.join(" ")) });
+  }
+  return out;
+}
+
+function parseZenit(md: string, bookmaker: string): RawEvent[] {
+  const out: RawEvent[] = [];
+  const lines = md.split("\n").map((l) => l.trim());
+  let currentLeague: string | undefined;
+  for (const line of lines) {
+    const league = line.match(/^\| \[([^\]]+?)\]\(https?:\/\/zenit\.win\/(?:live|line)\/[^)]+\) \|$/);
+    if (league) { currentLeague = league[1]; continue; }
+    if (!/^\|.*\]\(https?:\/\/zenit\.win\/(?:live|line)\//.test(line)) continue;
+    const cells = line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+    if (cells.length < 14) continue;
+    const title = cells[0].match(/\[([^\]]+?)\]\((https?:\/\/zenit\.win\/[^\s)]+).*?"([^"-]+?)\s*-\s*([^"]+?)"\)/);
+    if (!title) continue;
+    const team1 = cleanParticipantName(title[3]);
+    const team2 = cleanParticipantName(title[4]);
+    const url = title[2];
+    if (isJunkEvent(team1, team2, url)) continue;
+    const n = (idx: number) => oddFromText(cells[idx] ?? "");
+    const markets: RawMarket[] = [];
+    addMarket(markets, "1X2", [{ outcome: "1", odds: n(1) }, { outcome: "X", odds: n(2) }, { outcome: "2", odds: n(3) }]);
+    addMarket(markets, "Победитель", [{ outcome: "1", odds: n(1) }, { outcome: "2", odds: n(3) }]);
+    addMarket(markets, "Двойной шанс", [{ outcome: "1X", odds: n(4) }, { outcome: "12", odds: n(5) }, { outcome: "X2", odds: n(6) }]);
+    const h1 = numberFromText(cells[7] ?? "");
+    const h2 = numberFromText(cells[9] ?? "");
+    if (h1 !== undefined && h2 !== undefined) addMarket(markets, `Фора ${fmtLine(Math.abs(h1))}`, [{ outcome: `Ф1 ${fmtLine(h1)}`, odds: n(8) }, { outcome: `Ф2 ${fmtLine(h2)}`, odds: n(10) }]);
+    const total = numberFromText(cells[12] ?? "");
+    if (total !== undefined) addMarket(markets, `Тотал ${fmtLine(total)}`, [{ outcome: "М", odds: n(11) }, { outcome: "Б", odds: n(13) }]);
+    if (markets.length) out.push({ bookmaker, url, sport: currentLeague?.includes("Баскетбол") ? "Basketball" : "Football", team1, team2, markets, league: currentLeague, dateKey: parseDateKey(cells[0]) });
   }
   return out;
 }
