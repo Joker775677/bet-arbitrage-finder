@@ -85,10 +85,16 @@ function RuLivePage() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
               <span>Всего коэф.: <span className="font-mono text-foreground">{r.totalOdds}</span></span>
               <span>Уникальных событий: <span className="font-mono text-foreground">{r.matchedEvents}</span></span>
+              {r.scannedAt && (
+                <span>Снимок от: <span className="font-mono text-foreground">{new Date(r.scannedAt).toLocaleTimeString("ru")}</span></span>
+              )}
             </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              ⚠️ Коэффициенты у БК меняются каждые несколько секунд. Это снимок на момент сканирования — на сайте БК могут отличаться.
+            </p>
           </Card>
 
           <Card>
@@ -158,7 +164,19 @@ function RuLivePage() {
                   <div key={idx} className="p-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-medium truncate">{mt.event_name}</div>
-                      <div className="text-xs text-muted-foreground">{mt.bookies.join(" · ")}</div>
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-2">
+                        {mt.bookies.map((b, i) => (
+                          <a
+                            key={i}
+                            href={b.url || "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline decoration-dotted hover:text-primary"
+                          >
+                            {b.name} ↗
+                          </a>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm font-mono">
                       {mt.best.map((b, i) => (

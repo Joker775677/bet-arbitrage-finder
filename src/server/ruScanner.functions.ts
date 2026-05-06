@@ -229,36 +229,47 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     }));
 
     // === Top matched events (present in 2+ bookies) ===
-    // Group canonical key → outcome → list of {bm, odds}
-    type Pick = { bm: string; odds: number };
+    // Group canonical key → outcome → list of {bm, odds, url}
+    type Pick = { bm: string; odds: number; url: string };
     const grouped = new Map<string, Map<string, Pick[]>>();
+    const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
+    for (const br of bookieResults) {
+      for (const ev of br.events) {
+        const k = eventKey(ev.team1, ev.team2);
+        let bmUrls = urlMap.get(k);
+        if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
+        bmUrls.set(br.name, ev.url);
+      }
+    }
     for (const o of odds) {
       let m1 = grouped.get(o.event_name);
       if (!m1) { m1 = new Map(); grouped.set(o.event_name, m1); }
       const arr = m1.get(o.outcome) ?? [];
-      arr.push({ bm: o.bookmaker_name ?? o.bookmaker_id, odds: o.odds });
+      const bm = o.bookmaker_name ?? o.bookmaker_id;
+      arr.push({ bm, odds: o.odds, url: urlMap.get(o.event_name)?.get(bm) ?? "" });
       m1.set(o.outcome, arr);
     }
     const matched: {
       event_name: string;
       arbPercent: number;
-      bookies: string[];
+      bookies: { name: string; url: string }[];
       best: { outcome: string; odds: number; bm: string }[];
     }[] = [];
     for (const [key, outcomes] of grouped) {
       const bmSet = new Set<string>();
       for (const arr of outcomes.values()) for (const p of arr) bmSet.add(p.bm);
       if (bmSet.size < 2) continue;
-      if (outcomes.size < 3) continue; // need 1, X, 2
+      if (outcomes.size < 3) continue;
       const best = Array.from(outcomes.entries()).map(([outcome, arr]) => {
         const top = arr.reduce((a, b) => (b.odds > a.odds ? b : a));
         return { outcome, odds: top.odds, bm: top.bm };
       });
       const arbPercent = best.reduce((s, l) => s + 1 / l.odds, 0);
+      const bmUrls = urlMap.get(key);
       matched.push({
         event_name: displayMap.get(key) ?? key,
         arbPercent,
-        bookies: Array.from(bmSet),
+        bookies: Array.from(bmSet).map((n) => ({ name: n, url: bmUrls?.get(n) ?? "" })),
         best,
       });
     }
@@ -274,5 +285,6 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       totalOdds: odds.length,
       matchedEvents: new Set(odds.map((o) => o.event_name)).size,
       topMatches: matched.slice(0, 20),
+      scannedAt: new Date().toISOString(),
     };
   });
