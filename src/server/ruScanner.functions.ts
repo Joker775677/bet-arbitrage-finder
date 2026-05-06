@@ -1104,7 +1104,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             return;
           }
           const md = await fcScrape(s.url, 2500);
-          const events =
+          let events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
@@ -1112,6 +1112,14 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
                     : s.parser === "zenit" ? parseZenit(md, s.name)
                       : s.parser === "fonbet" ? parseFonbet(md, s.name)
                         : parseGenericLine(clean(md), s.name);
+          if (!events.length) {
+            const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
+            const list = await fcExtractList(s.url, sportHint);
+            events = eventsFromExtractedList(list, s.name, s.url, sportHint);
+            console.log(`[ruScanner] ${s.name} LLM-fallback events=${events.length}`);
+          } else {
+            console.log(`[ruScanner] ${s.name} markdown events=${events.length}`);
+          }
           bookieResults.push({ name: s.name, url: s.url, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, url: s.url, events: [], error: e.message });
