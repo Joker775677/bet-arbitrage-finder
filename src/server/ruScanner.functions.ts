@@ -300,6 +300,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "generic" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
       { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
+      { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "generic" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
