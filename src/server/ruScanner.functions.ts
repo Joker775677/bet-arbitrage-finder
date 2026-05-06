@@ -282,7 +282,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const odds: OddRow[] = [];
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const key = eventKey(ev.team1, ev.team2);
+        const key = eventKey(ev.team1, ev.team2, ev.dateKey);
         const outcomes: [string, number][] = [
           ["1", ev.odds[0]],
           ["X", ev.odds[1]],
@@ -295,7 +295,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             bookmaker_name: br.name,
             sport: "Football",
             tournament: null,
-            event_name: key, // canonical key for grouping
+            event_name: key, // canonical key for grouping includes date to avoid mixing fixtures
             event_time: null,
             market: "1X2",
             outcome,
@@ -309,10 +309,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = eventKey(ev.team1, ev.team2);
+        const k = eventKey(ev.team1, ev.team2, ev.dateKey);
         const isCyr = /[а-яё]/i.test(ev.team1);
         if (!displayMap.has(k) || isCyr) {
-          displayMap.set(k, `${ev.team1} — ${ev.team2}`);
+          displayMap.set(k, ev.dateKey ? `${ev.dateKey} · ${ev.team1} — ${ev.team2}` : `${ev.team1} — ${ev.team2}`);
         }
       }
     }
@@ -330,7 +330,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = eventKey(ev.team1, ev.team2);
+        const k = eventKey(ev.team1, ev.team2, ev.dateKey);
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
@@ -362,7 +362,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       const arbPercent = best.reduce((s, l) => s + 1 / l.odds, 0);
       const bmUrls = urlMap.get(key);
       matched.push({
-        event_name: displayMap.get(key) ?? key,
+        event_name: displayMap.get(key) ?? displayKey(key),
         arbPercent,
         bookies: Array.from(bmSet).map((n) => ({ name: n, url: bmUrls?.get(n) ?? "" })),
         best,
