@@ -198,7 +198,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       let m1 = grouped.get(o.event_name);
       if (!m1) { m1 = new Map(); grouped.set(o.event_name, m1); }
       const arr = m1.get(o.outcome) ?? [];
-      arr.push({ bm: o.bookmaker_name, odds: o.odds });
+      arr.push({ bm: o.bookmaker_name ?? o.bookmaker_id, odds: o.odds });
       m1.set(o.outcome, arr);
     }
     const matched: {
