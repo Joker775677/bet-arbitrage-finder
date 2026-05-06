@@ -40,7 +40,7 @@ function RuLivePage() {
           RU Live Scanner
         </h1>
         <p className="text-sm text-muted-foreground">
-          Автопарсинг Winline + Fonbet через Firecrawl. Матчинг команд по словарю синонимов.
+          Автопарсинг Winline, Fonbet, Marathonbet, Tennisi, BetBoom, Leon и Zenit. Матчинг учитывает лигу и дату события.
         </p>
       </div>
 
@@ -60,7 +60,7 @@ function RuLivePage() {
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Сканирование занимает ~10–15 секунд (Firecrawl ждёт рендера страниц).
+          Сканирование занимает до минуты: сканируются несколько БК и рынков — исходы, форы, тоталы и двойные шансы.
         </p>
       </Card>
 
