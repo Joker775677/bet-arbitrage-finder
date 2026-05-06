@@ -20,11 +20,11 @@ interface RawMarket {
   selections: { outcome: string; odds: number }[];
 }
 
-async function fcScrape(url: string, waitFor = 2500): Promise<string> {
+async function fcScrape(url: string, waitFor = 4000): Promise<string> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) throw new Error("FIRECRAWL_API_KEY not configured");
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 22000);
+  const t = setTimeout(() => ctrl.abort(), 55000);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
@@ -35,10 +35,9 @@ async function fcScrape(url: string, waitFor = 2500): Promise<string> {
         formats: ["markdown"],
         onlyMainContent: true,
         waitFor,
-        maxAge: 0,
-        storeInCache: false,
+        maxAge: 120000, // allow 2-min Firecrawl cache → faster + less timeouts
         removeBase64Images: true,
-        timeout: 20000,
+        timeout: 50000,
         location: { country: "RU", languages: ["ru-RU"] },
       }),
     });
