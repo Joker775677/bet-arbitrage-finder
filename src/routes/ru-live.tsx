@@ -27,10 +27,11 @@ interface SourceState {
   error?: string;
 }
 
-const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string }[] = [
+const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon" | "zenit"; url: string }[] = [
   { name: "Fonbet", key: "fonbet", url: "https://www.fon.bet/live/" },
   { name: "Pari",   key: "pari",   url: "https://pari.ru/live/" },
   { name: "Leon",   key: "leon",   url: "https://leon.ru/live/" },
+  { name: "Zenit",  key: "zenit",  url: "https://zenit.win/live/" },
 ];
 
 type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
