@@ -42,11 +42,12 @@ function RuLivePage() {
     if (running) return;
     setRunning(true);
     setR(null);
-    setStates(RU_SOURCES.map((s) => ({ source: s, status: "scanning", events: 0 })));
+    setStates(RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })));
     try {
       const results: Awaited<ReturnType<typeof scanOne>>[] = [];
       for (let start = 0; start < RU_SOURCES.length; start += SCAN_CONCURRENCY) {
         const batch = RU_SOURCES.slice(start, start + SCAN_CONCURRENCY);
+        setStates((prev) => prev.map((p, i) => i >= start && i < start + batch.length ? { ...p, status: "scanning" } : p));
         const batchResults = await Promise.all(batch.map(async (source, offset) => {
           const idx = start + offset;
           try {
