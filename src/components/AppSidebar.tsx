@@ -10,6 +10,7 @@ const items = [
   { title: "Bookmakers", url: "/bookmakers", icon: Building2 },
   { title: "Odds Import", url: "/odds", icon: Upload },
   { title: "Live Scanner", url: "/live", icon: Radar },
+  { title: "RU Live Scanner", url: "/ru-live", icon: Radar },
   { title: "Quick RU Arb", url: "/quick", icon: Zap },
   { title: "Manual Scanner", url: "/scanner", icon: Search },
   { title: "Opportunities", url: "/opportunities", icon: Target },

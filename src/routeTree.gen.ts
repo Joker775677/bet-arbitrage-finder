@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScannerRouteImport } from './routes/scanner'
+import { Route as RuLiveRouteImport } from './routes/ru-live'
 import { Route as QuickRouteImport } from './routes/quick'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as OddsRouteImport } from './routes/odds'
@@ -26,6 +27,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ScannerRoute = ScannerRouteImport.update({
   id: '/scanner',
   path: '/scanner',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RuLiveRoute = RuLiveRouteImport.update({
+  id: '/ru-live',
+  path: '/ru-live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuickRoute = QuickRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
+  '/ru-live': typeof RuLiveRoute
   '/scanner': typeof ScannerRoute
   '/settings': typeof SettingsRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
+  '/ru-live': typeof RuLiveRoute
   '/scanner': typeof ScannerRoute
   '/settings': typeof SettingsRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
+  '/ru-live': typeof RuLiveRoute
   '/scanner': typeof ScannerRoute
   '/settings': typeof SettingsRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/odds'
     | '/opportunities'
     | '/quick'
+    | '/ru-live'
     | '/scanner'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/odds'
     | '/opportunities'
     | '/quick'
+    | '/ru-live'
     | '/scanner'
     | '/settings'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/odds'
     | '/opportunities'
     | '/quick'
+    | '/ru-live'
     | '/scanner'
     | '/settings'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   OddsRoute: typeof OddsRoute
   OpportunitiesRoute: typeof OpportunitiesRoute
   QuickRoute: typeof QuickRoute
+  RuLiveRoute: typeof RuLiveRoute
   ScannerRoute: typeof ScannerRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/scanner'
       fullPath: '/scanner'
       preLoaderRoute: typeof ScannerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ru-live': {
+      id: '/ru-live'
+      path: '/ru-live'
+      fullPath: '/ru-live'
+      preLoaderRoute: typeof RuLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quick': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   OddsRoute: OddsRoute,
   OpportunitiesRoute: OpportunitiesRoute,
   QuickRoute: QuickRoute,
+  RuLiveRoute: RuLiveRoute,
   ScannerRoute: ScannerRoute,
   SettingsRoute: SettingsRoute,
 }
