@@ -207,6 +207,58 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
   return out;
 }
 
+// betboom.ru — markdown is a flat stream:
+//   "### ![icon](...)<League Name>"
+//   ""
+//   <team1 short tags> ... <team1 name> ... <team2 name>
+//   <misc score/time lines>
+//   "П1<odd>X<odd>П2<odd>Ещё+ N"
+function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
+  const out: RawEvent[] = [];
+  const lines = md.split("\n").map((l) => l.trim());
+  const oddsRe = /^П1(\d{1,2}\.\d{1,3})X(\d{1,2}\.\d{1,3})П2(\d{1,2}\.\d{1,3})/;
+  let currentLeague: string | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    const lh = ln.match(/^#{1,4}\s*(?:!\[[^\]]*\]\([^)]*\))?\s*(.+?)\s*$/);
+    if (lh && /[А-Яа-яё]/.test(lh[1]) && !oddsRe.test(ln)) {
+      currentLeague = lh[1];
+      continue;
+    }
+    const m = ln.match(oddsRe);
+    if (!m) continue;
+    const odds: [number, number, number] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (!odds.every((x) => x > 1.01 && x < 200)) continue;
+    // Walk back to find two team names (non-empty, non-numeric, no images-only)
+    const names: string[] = [];
+    for (let j = i - 1; j >= Math.max(0, i - 30) && names.length < 2; j--) {
+      const s = lines[j];
+      if (!s) continue;
+      if (/^!\[/.test(s)) continue;
+      if (/^\d+$/.test(s) || /^\d+:\d+/.test(s)) continue;
+      if (/^(?:1Т|2Т|перерыв|тайм|live|перерыв)/i.test(s)) continue;
+      if (/^#{1,4}/.test(s)) break;
+      if (/^[A-Za-zА-Яа-яё][A-Za-zА-Яа-яё0-9 .'’\-]{1,40}$/.test(s)) {
+        names.unshift(s);
+      }
+    }
+    if (names.length < 2) continue;
+    const team1 = cleanParticipantName(names[0]);
+    const team2 = cleanParticipantName(names[1]);
+    if (!team1 || !team2 || team1 === team2) continue;
+    if (isJunkEvent(team1, team2, "")) continue;
+    out.push({
+      bookmaker,
+      url: "https://betboom.ru/sport/football",
+      team1,
+      team2,
+      odds,
+      league: currentLeague,
+    });
+  }
+  return out;
+}
+
 // === Team name normalization ===
 // Map common EN ↔ RU spellings to a canonical form
 const SYNONYMS: Record<string, string> = {
