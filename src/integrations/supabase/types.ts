@@ -133,6 +133,89 @@ export type Database = {
           },
         ]
       }
+      ru_events: {
+        Row: {
+          date_key: string | null
+          event_key: string
+          event_name: string
+          id: string
+          league: string | null
+          scanned_at: string
+          source: string
+          sport: string | null
+          team1: string
+          team2: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          date_key?: string | null
+          event_key: string
+          event_name: string
+          id?: string
+          league?: string | null
+          scanned_at?: string
+          source: string
+          sport?: string | null
+          team1: string
+          team2: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          date_key?: string | null
+          event_key?: string
+          event_name?: string
+          id?: string
+          league?: string | null
+          scanned_at?: string
+          source?: string
+          sport?: string | null
+          team1?: string
+          team2?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      ru_odds: {
+        Row: {
+          event_id: string
+          id: string
+          market: string
+          odds: number
+          outcome: string
+          scanned_at: string
+          updated_at: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          market: string
+          odds: number
+          outcome: string
+          scanned_at?: string
+          updated_at?: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          market?: string
+          odds?: number
+          outcome?: string
+          scanned_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_odds_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "ru_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scan_runs: {
         Row: {
           arbs_found: number
@@ -231,7 +314,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_ru_data: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
