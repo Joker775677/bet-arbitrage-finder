@@ -605,20 +605,23 @@ function eventLeague(ev: RawEvent): string {
   return fromLeague ?? leagueFromText(ev.url) ?? leagueSlugFromUrl(ev.url) ?? (ev.league ? translit(ev.league.toLowerCase()).replace(/[^a-z0-9]/g, "-").slice(0, 30) : "any");
 }
 
-function canonicalEvent(team1: string, team2: string, league: string, dateKey?: string): { key: string; flip: boolean; display: string } {
+function canonicalEvent(team1: string, team2: string, _league: string, dateKey?: string): { key: string; flip: boolean; display: string } {
   const a = teamSig(team1);
   const b = teamSig(team2);
   const flip = a > b;
   const pair = flip ? `${b}|${a}` : `${a}|${b}`;
+  // NOTE: league intentionally excluded from key — different bookies label
+  // leagues differently, which prevented matching. Date + teams is enough
+  // to distinguish events (same teams almost never play twice in one day).
   return {
-    key: `${league}|${dateKey ?? "date-any"}|${pair}`,
+    key: `${dateKey ?? "date-any"}|${pair}`,
     flip,
     display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
   };
 }
 
 function displayKey(key: string): string {
-  return key.split("|").slice(2).join(" — ");
+  return key.split("|").slice(1).join(" — ");
 }
 
 function orientMarkets(markets: RawMarket[], flip: boolean): RawMarket[] {
