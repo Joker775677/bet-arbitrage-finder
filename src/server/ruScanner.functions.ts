@@ -562,10 +562,10 @@ function parseLeon(md: string, bookmaker: string): RawEvent[] {
     const block: string[] = [];
     for (let j = i; j < Math.min(i + 8, lines.length); j++) {
       block.push(lines[j]);
-      if (/\]\(https?:\/\/leon\.ru\/bets\//.test(lines[j])) break;
+      if (/\]\(https?:\/\/leon\.(?:ru|bet)\/(?:ru-ru\/)?(?:bets|live)\//.test(lines[j])) break;
     }
     const joined = block.join(" ");
-    const m = joined.match(/^\[(.+?)\]\((https?:\/\/leon\.ru\/bets\/[^)]+)\)/);
+    const m = joined.match(/^\[(.+?)\]\((https?:\/\/leon\.(?:ru|bet)\/(?:ru-ru\/)?(?:bets|live)\/[^)]+)\)/);
     if (!m) continue;
     const parts = m[1].replace(/\\/g, "\n").split("\n").map(cleanParticipantName).filter(Boolean);
     if (parts.length < 3) continue;
@@ -973,9 +973,9 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
       { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
-      { name: "Tennisi", url: "https://tennisi.bet/sport", parser: "tennisi" },
+      { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
       { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
-      { name: "Leon", url: "https://leon.ru/bets", parser: "leon" },
+      { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
       { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
       { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
