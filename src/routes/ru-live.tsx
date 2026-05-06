@@ -215,6 +215,45 @@ function RuLivePage() {
         )}
       </Card>
 
+      <Card>
+        <div className="flex items-center justify-between border-b border-border p-4">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            <h2 className="font-display text-lg font-semibold">База данных событий</h2>
+            <Badge variant="secondary">{dbCount}</Badge>
+            <span className="text-[11px] text-muted-foreground">realtime · автоочистка &gt; 24ч</span>
+          </div>
+        </div>
+        {dbEvents.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">Пока нет сохранённых событий. Запустите скан.</p>
+        ) : (
+          <div className="max-h-[400px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/80 backdrop-blur text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left">БК</th>
+                  <th className="px-3 py-2 text-left">Событие</th>
+                  <th className="px-3 py-2 text-left">Лига</th>
+                  <th className="px-3 py-2 text-left">Спорт</th>
+                  <th className="px-3 py-2 text-right">Когда</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dbEvents.map((ev) => (
+                  <tr key={ev.id} className="border-t border-border hover:bg-muted/30">
+                    <td className="px-3 py-1.5 font-medium">{ev.source}</td>
+                    <td className="px-3 py-1.5">{ev.event_name}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{ev.league ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{ev.sport ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs">{new Date(ev.scanned_at).toLocaleTimeString("ru")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       {r && (
         <>
           <Card>
