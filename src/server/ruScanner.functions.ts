@@ -336,11 +336,12 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
             bookmaker_name: br.name,
             sport: "Football",
             tournament: null,
-            event_name: canonical.key, // canonical key for grouping includes date to avoid mixing fixtures
+            event_name: canonical.key,
             event_time: null,
             market: "1X2",
             outcome,
             odds: val,
+            url: ev.url,
           });
         }
       }

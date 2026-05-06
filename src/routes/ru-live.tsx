@@ -136,7 +136,13 @@ function RuLivePage() {
                       <tbody>
                         {a.legs.map((l, i) => (
                           <tr key={i} className="border-t border-border">
-                            <td className="px-3 py-1.5 font-medium">{l.bookmaker_name}</td>
+                            <td className="px-3 py-1.5 font-medium">
+                              {l.url ? (
+                                <a href={l.url} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-primary">
+                                  {l.bookmaker_name} ↗
+                                </a>
+                              ) : l.bookmaker_name}
+                            </td>
                             <td className="px-3 py-1.5">{l.outcome}</td>
                             <td className="px-3 py-1.5 text-right font-mono">{l.odds.toFixed(2)}</td>
                             <td className="px-3 py-1.5 text-right font-mono">{l.stake.toLocaleString("ru")} ₽</td>
