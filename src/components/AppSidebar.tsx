@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Building2, Upload, Search, Target, Settings as SettingsIcon, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Building2, Upload, Search, Target, Settings as SettingsIcon, TrendingUp, Radar } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
@@ -9,7 +9,8 @@ const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Bookmakers", url: "/bookmakers", icon: Building2 },
   { title: "Odds Import", url: "/odds", icon: Upload },
-  { title: "Arbitrage Scanner", url: "/scanner", icon: Search },
+  { title: "Live Scanner", url: "/live", icon: Radar },
+  { title: "Manual Scanner", url: "/scanner", icon: Search },
   { title: "Opportunities", url: "/opportunities", icon: Target },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ];
