@@ -77,12 +77,19 @@ const MONTHS: Record<string, string> = {
 };
 
 function parseDateKey(text: string): string | undefined {
-  const numeric = text.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?\b/);
-  if (numeric) return `${numeric[1].padStart(2, "0")}.${numeric[2].padStart(2, "0")}`;
+  const numeric = text.match(/(?:^|[^\d.])(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?(?=\D|$)/);
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${numeric[1].padStart(2, "0")}.${numeric[2].padStart(2, "0")}`;
+    }
+  }
   const word = text.toLowerCase().match(/\b(\d{1,2})\s+([a-zа-яё.]+)\b/i);
   if (!word) return undefined;
   const month = MONTHS[word[2].replace(/\.$/, "")];
-  return month ? `${word[1].padStart(2, "0")}.${month}` : undefined;
+  const day = Number(word[1]);
+  return month && day >= 1 && day <= 31 ? `${word[1].padStart(2, "0")}.${month}` : undefined;
 }
 
 function cleanParticipantName(name: string): string {
