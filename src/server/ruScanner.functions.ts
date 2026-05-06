@@ -973,17 +973,22 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url, s.parser.endsWith("detail") ? 4000 : 2500);
+          if (s.parser === "winline-detail" || s.parser === "leon-detail") {
+            const extracted = await fcExtractEvent(s.url);
+            const events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+            console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets.length ?? 0}`);
+            bookieResults.push({ name: s.name, events });
+            return;
+          }
+          const md = await fcScrape(s.url, 2500);
           const events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
                   : s.parser === "leon" ? parseLeon(md, s.name)
-                    : s.parser === "leon-detail" ? parseLeonDetail(md, s.name)
-                      : s.parser === "winline-detail" ? parseWinlineDetail(md, s.name)
-                        : s.parser === "zenit" ? parseZenit(md, s.name)
-                          : s.parser === "fonbet" ? parseFonbet(md, s.name)
-                            : parseGenericLine(clean(md), s.name);
+                    : s.parser === "zenit" ? parseZenit(md, s.name)
+                      : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                        : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
