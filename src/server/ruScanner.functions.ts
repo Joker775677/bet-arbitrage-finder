@@ -851,13 +851,15 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" }[] = [
+    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" | "winline-detail" | "leon-detail" }[] = [
       { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
+      { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
       { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
       { name: "Tennisi", url: "https://tennisi.bet/sport", parser: "tennisi" },
       { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
       { name: "Leon", url: "https://leon.ru/bets", parser: "leon" },
+      { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
       { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
 
@@ -865,15 +867,17 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" ? 12000 : 6000);
+          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" || s.parser.endsWith("detail") ? 12000 : 6000);
           const events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
                   : s.parser === "leon" ? parseLeon(md, s.name)
-                    : s.parser === "zenit" ? parseZenit(md, s.name)
-                      : s.parser === "fonbet" ? parseFonbet(md, s.name)
-                        : parseGenericLine(clean(md), s.name);
+                    : s.parser === "leon-detail" ? parseLeonDetail(md, s.name)
+                      : s.parser === "winline-detail" ? parseWinlineDetail(md, s.name)
+                        : s.parser === "zenit" ? parseZenit(md, s.name)
+                          : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                            : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
