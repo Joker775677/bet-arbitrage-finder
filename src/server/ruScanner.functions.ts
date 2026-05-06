@@ -232,33 +232,61 @@ const SYNONYMS: Record<string, string> = {
   "nottingham forest": "nottingham",
 };
 
-function normTeam(name: string): string {
-  let s = name.toLowerCase().trim();
-  s = s.replace(/[ё]/g, "е");
-  s = s.replace(/\s+/g, " ");
-  // strip common suffixes
-  s = s.replace(/\s*\(.*?\)\s*/g, "");
-  if (SYNONYMS[s]) return SYNONYMS[s];
-  // try without trailing single letter (м, к, etc.)
-  const trimmed = s.replace(/\s+[а-яa-z]$/i, "");
-  if (SYNONYMS[trimmed]) return SYNONYMS[trimmed];
-  return s;
+// Cyrillic → Latin transliteration (GOST-ish, lossy but consistent)
+const TRANSLIT: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i",
+  й: "i", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s",
+  т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sh",
+  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+function translit(s: string): string {
+  return s.toLowerCase().replace(/ё/g, "е").split("").map((c) => TRANSLIT[c] ?? c).join("");
 }
 
-function canonicalEvent(team1: string, team2: string, dateKey?: string): { key: string; flip: boolean; display: string } {
-  const a = normTeam(team1);
-  const b = normTeam(team2);
+const STOPWORDS = new Set([
+  "fc", "fk", "cf", "club", "the", "de", "city", "united", "utd", "calcio", "ac",
+  "fk.", "1.", "ii", "b", "u19", "u21", "u23", "ii.", "м", "k", "к", "ii",
+]);
+
+function tokenize(name: string): string[] {
+  const lat = translit(name.toLowerCase())
+    .replace(/[().,'`’"!?:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return lat.split(" ").map((t) => t.replace(/[^a-z0-9]/g, "")).filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+}
+
+// Apply explicit synonyms first; otherwise return tokens of the team name
+function teamTokens(name: string): string[] {
+  const cleaned = name.toLowerCase().replace(/ё/g, "е").replace(/\s*\(.*?\)\s*/g, "").replace(/\s+/g, " ").trim();
+  if (SYNONYMS[cleaned]) return SYNONYMS[cleaned].split(/\s+/);
+  const trimmed = cleaned.replace(/\s+[а-яa-z]$/i, "");
+  if (SYNONYMS[trimmed]) return SYNONYMS[trimmed].split(/\s+/);
+  const toks = tokenize(name);
+  return toks.length ? toks : [translit(cleaned).replace(/\s+/g, "")];
+}
+
+// Signature = the longest, most "rare" token (heuristic: longest one wins)
+function teamSig(name: string): string {
+  const t = teamTokens(name);
+  if (!t.length) return translit(name).replace(/\s+/g, "");
+  return [...t].sort((a, b) => b.length - a.length)[0];
+}
+
+function canonicalEvent(team1: string, team2: string, _dateKey?: string): { key: string; flip: boolean; display: string } {
+  const a = teamSig(team1);
+  const b = teamSig(team2);
   const flip = a > b;
   const pair = flip ? `${b}|${a}` : `${a}|${b}`;
   return {
-    key: `${dateKey ?? "no-date"}|${pair}`,
+    key: pair,
     flip,
     display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
   };
 }
 
 function displayKey(key: string): string {
-  return key.replace(/^(?:no-date|\d{2}\.\d{2})\|/, "");
+  return key.replace(/\|/g, " — ");
 }
 
 export const scanRussianBookies = createServerFn({ method: "POST" })
