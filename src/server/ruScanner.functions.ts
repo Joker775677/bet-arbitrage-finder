@@ -1127,12 +1127,12 @@ export interface RuSource {
 }
 
 export const RU_SOURCES: RuSource[] = [
-  { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
+  { name: "Winline", url: "https://winline.ru/live", parser: "generic" },
   { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
-  { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
+  { name: "Marathonbet", url: "https://www.marathonbet.ru/su/live/popular", parser: "marathon" },
   { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
-  { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
-  { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
+  { name: "BetBoom", url: "https://betboom.ru/sport/live", parser: "betboom" },
+  { name: "Leon", url: "https://leon.ru/live", parser: "leon" },
   { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
 ];
 
