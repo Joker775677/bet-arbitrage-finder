@@ -312,102 +312,102 @@ function RuLivePage() {
 
       {r && (
         <>
-          <Card>
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <h2 className="font-display text-lg font-semibold">Найденные вилки</h2>
-                <Badge variant="secondary">{r.arbs.length}</Badge>
-              </div>
-            </div>
-            {r.arbs.length === 0 ? (
-              <p className="p-10 text-center text-sm text-muted-foreground">
-                Вилок не найдено. Попробуйте уменьшить мин. ROI или повторите сканирование позже.
-              </p>
-            ) : (
-              <div className="divide-y divide-border">
-                {r.arbs.map((a) => (
-                  <div key={a.key} className="p-5 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="font-display text-base font-semibold">{a.event_name}</div>
-                        <div className="text-xs text-muted-foreground">{a.market}</div>
-                      </div>
-                      <div className="flex gap-3 text-sm">
-                        <Badge className="font-mono">ROI {a.roi.toFixed(2)}%</Badge>
-                        <span className="font-mono text-primary">+{a.profit.toLocaleString("ru")} ₽</span>
-                      </div>
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-1.5 text-left">БК</th>
-                          <th className="px-3 py-1.5 text-left">Исход</th>
-                          <th className="px-3 py-1.5 text-right">Коэф.</th>
-                          <th className="px-3 py-1.5 text-right">Ставка</th>
-                          <th className="px-3 py-1.5 text-right">Выплата</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {a.legs.map((l, i) => (
-                          <tr key={i} className="border-t border-border">
-                            <td className="px-3 py-1.5 font-medium">
-                              {l.url ? (
-                                <a href={l.url} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-primary">
-                                  {l.bookmaker_name} ↗
-                                </a>
-                              ) : l.bookmaker_name}
-                            </td>
-                            <td className="px-3 py-1.5">{l.outcome}</td>
-                            <td className="px-3 py-1.5 text-right font-mono">{l.odds.toFixed(2)}</td>
-                            <td className="px-3 py-1.5 text-right font-mono">{l.stake.toLocaleString("ru")} ₽</td>
-                            <td className="px-3 py-1.5 text-right font-mono">{l.payout.toLocaleString("ru")} ₽</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+          {(["live", "prematch"] as const).map((kind) => {
+            const list = r.arbs.filter((a) => (kind === "live" ? a.live : !a.live));
+            const title = kind === "live" ? "Live вилки" : "Prematch вилки";
+            const matched = kind === "live" ? r.matchedLive : r.matchedPrematch;
+            return (
+              <Card key={kind}>
+                <div className="flex items-center justify-between border-b border-border p-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <h2 className="font-display text-lg font-semibold">{title}</h2>
+                    <Badge variant="secondary">{list.length}</Badge>
+                    <span className="text-xs text-muted-foreground">из {matched} совпавших событий</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                </div>
+                {list.length === 0 ? (
+                  <p className="p-8 text-center text-sm text-muted-foreground">
+                    Вилок не найдено. Совпавших событий: {matched}. Снизьте мин. ROI или повторите скан.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {list.map((a) => (
+                      <div key={a.key} className="p-5 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="font-display text-base font-semibold">{a.event_name}</div>
+                            <div className="text-xs text-muted-foreground">{a.market} · {a.sport}</div>
+                          </div>
+                          <div className="flex gap-3 text-sm items-center">
+                            {a.live && <Badge variant="destructive" className="font-mono">LIVE</Badge>}
+                            <Badge className="font-mono">ROI {a.roi.toFixed(2)}%</Badge>
+                            <span className="font-mono text-primary">+{a.profit.toLocaleString("ru")} ₽</span>
+                          </div>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                            <tr>
+                              <th className="px-3 py-1.5 text-left">БК</th>
+                              <th className="px-3 py-1.5 text-left">Исход</th>
+                              <th className="px-3 py-1.5 text-right">Коэф.</th>
+                              <th className="px-3 py-1.5 text-right">Ставка</th>
+                              <th className="px-3 py-1.5 text-right">Выплата</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {a.legs.map((l, i) => (
+                              <tr key={i} className="border-t border-border">
+                                <td className="px-3 py-1.5 font-medium">
+                                  {l.url ? (
+                                    <a href={l.url} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-primary">
+                                      {l.bookmaker_name} ↗
+                                    </a>
+                                  ) : l.bookmaker_name}
+                                </td>
+                                <td className="px-3 py-1.5">{l.outcome}</td>
+                                <td className="px-3 py-1.5 text-right font-mono">{l.odds.toFixed(2)}</td>
+                                <td className="px-3 py-1.5 text-right font-mono">{l.stake.toLocaleString("ru")} ₽</td>
+                                <td className="px-3 py-1.5 text-right font-mono">{l.payout.toLocaleString("ru")} ₽</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
 
-          {r.topMatches && r.topMatches.length > 0 && (
+          {r.nearArbs && r.nearArbs.length > 0 && (
             <Card>
               <div className="border-b border-border p-4">
-                <h2 className="font-display text-lg font-semibold">Топ совпадений (есть в обеих БК)</h2>
+                <h2 className="font-display text-lg font-semibold">Ближайшие к вилке (margin 100–105%)</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Отсортировано по сумме обратных коэф. (чем ближе к 1.00 — тем ближе к вилке).
+                  Полные рынки с маржой чуть выше 100%. Чем ближе к 100% — тем ближе к вилке.
                 </p>
               </div>
               <div className="divide-y divide-border">
-                {r.topMatches.map((mt, idx) => (
-                  <div key={idx} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                {r.nearArbs.map((mt) => (
+                  <div key={mt.key} className="p-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{mt.event_name}</div>
-                      <div className="text-xs text-muted-foreground flex flex-wrap gap-2">
-                        {mt.bookies.map((b, i) => (
-                          <a
-                            key={i}
-                            href={b.url || "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline decoration-dotted hover:text-primary"
-                          >
-                            {b.name} ↗
-                          </a>
-                        ))}
+                      <div className="font-medium truncate">
+                        {mt.event_name}
+                        {mt.live && <Badge variant="destructive" className="ml-2 font-mono text-[10px]">LIVE</Badge>}
                       </div>
+                      <div className="text-xs text-muted-foreground">{mt.market} · {mt.sport}</div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm font-mono">
-                      {mt.best.map((b, i) => (
+                    <div className="flex items-center gap-2 text-sm font-mono flex-wrap">
+                      {mt.legs.map((b, i) => (
                         <span key={i} className="rounded bg-muted px-2 py-0.5">
                           {b.outcome} {b.odds.toFixed(2)}
-                          <span className="ml-1 text-[10px] text-muted-foreground">{b.bm}</span>
+                          <span className="ml-1 text-[10px] text-muted-foreground">{b.bookmaker_name}</span>
                         </span>
                       ))}
-                      <Badge variant={mt.arbPercent < 1 ? "default" : "secondary"} className="font-mono">
-                        {(mt.arbPercent * 100).toFixed(1)}%
+                      <Badge variant="secondary" className="font-mono">
+                        {(mt.arbPercent * 100).toFixed(2)}%
                       </Badge>
                     </div>
                   </div>
