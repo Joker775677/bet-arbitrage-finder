@@ -30,12 +30,24 @@ interface SourceState {
 type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
 const SCAN_CONCURRENCY = 2;
 
+interface DbEventRow {
+  id: string;
+  source: string;
+  event_name: string;
+  league: string | null;
+  sport: string | null;
+  scanned_at: string;
+}
+
 function RuLivePage() {
   const scanOne = useServerFn(scanRuSource);
   const finalize = useServerFn(finalizeRuScan);
+  const persist = useServerFn(persistRuScan);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
+  const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
+  const [dbCount, setDbCount] = useState(0);
   const [states, setStates] = useState<SourceState[]>(
     RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })),
   );
