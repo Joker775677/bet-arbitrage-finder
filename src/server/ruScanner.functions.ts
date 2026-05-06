@@ -9,6 +9,7 @@ interface RawEvent {
   team1: string;
   team2: string;
   odds: [number, number, number]; // 1, X, 2
+  dateKey?: string; // dd.mm; used to avoid mixing different matches with same teams
 }
 
 async function fcScrape(url: string, waitFor = 6000): Promise<string> {
@@ -60,12 +61,58 @@ function parseOdds3(s: string): [number, number, number] | null {
   return null;
 }
 
+const MONTHS: Record<string, string> = {
+  jan: "01", january: "01", янв: "01", января: "01",
+  feb: "02", february: "02", фев: "02", февраля: "02",
+  mar: "03", march: "03", мар: "03", марта: "03",
+  apr: "04", april: "04", апр: "04", апреля: "04",
+  may: "05", мая: "05", май: "05",
+  jun: "06", june: "06", июн: "06", июня: "06",
+  jul: "07", july: "07", июл: "07", июля: "07",
+  aug: "08", august: "08", авг: "08", августа: "08",
+  sep: "09", sept: "09", september: "09", сен: "09", сентября: "09",
+  oct: "10", october: "10", окт: "10", октября: "10",
+  nov: "11", november: "11", ноя: "11", ноября: "11",
+  dec: "12", december: "12", дек: "12", декабря: "12",
+};
+
+function parseDateKey(text: string): string | undefined {
+  const numeric = text.match(/(?:^|[^\d.])(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?(?=\D|$)/);
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]);
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${numeric[1].padStart(2, "0")}.${numeric[2].padStart(2, "0")}`;
+    }
+  }
+  const word = text.toLowerCase().match(/\b(\d{1,2})\s+([a-zа-яё.]+)\b/i);
+  if (!word) return undefined;
+  const month = MONTHS[word[2].replace(/\.$/, "")];
+  const day = Number(word[1]);
+  return month && day >= 1 && day <= 31 ? `${word[1].padStart(2, "0")}.${month}` : undefined;
+}
+
+function cleanParticipantName(name: string): string {
+  return name
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/&nbsp;|\u00a0/g, " ")
+    .replace(/\\-/g, "-")
+    .replace(/\((?:первый матч|ответный матч|счет|сч[её]т|агр\.|agg\.)[^)]*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isSideMarket(text: string): boolean {
+  return /\((?:жк|угловые|карточки|удары|офсайды|фолы|пенальти|статистика|xg|желтые|жёлтые|красные)\)/i.test(text);
+}
+
 // Parse Winline / Fonbet style: [team1  team2](url) on one line, odds on next lines
 // Skip cybersports / virtual / non-real events
 function isJunkEvent(team1: string, team2: string, url: string): boolean {
   const blob = `${team1} ${team2} ${url}`.toLowerCase();
-  // Esports/FIFA player tags in parentheses, e.g. "Bayern (Shrek)"
-  if (/\([^)]+\)/.test(team1) || /\([^)]+\)/.test(team2)) return true;
+  if (isSideMarket(blob)) return true;
+  // Esports/FIFA player tags in parentheses, e.g. "Bayern (Shrek)".
+  if (/\([a-z0-9_]{3,24}\)/i.test(team1) || /\([a-z0-9_]{3,24}\)/i.test(team2)) return true;
   // Fonbet category 118 = FIFA cybersport
   if (/\/category\/118\//.test(url)) return true;
   // Common esports / virtual markers
@@ -78,10 +125,12 @@ function parseGenericLine(lines: string[], bookmaker: string): RawEvent[] {
   for (let i = 0; i < lines.length; i++) {
     const ev = parseEventLine(lines[i]);
     if (!ev) continue;
-    if (isJunkEvent(ev.team1, ev.team2, ev.url)) continue;
-    const window = lines.slice(i + 1, i + 6).join(" ");
+    const team1 = cleanParticipantName(ev.team1);
+    const team2 = cleanParticipantName(ev.team2);
+    if (isJunkEvent(team1, team2, ev.url)) continue;
+    const window = lines.slice(i + 1, i + 8).join(" ");
     const odds = parseOdds3(window) ?? parseOdds3(lines[i + 1] ?? "");
-    if (odds) out.push({ bookmaker, url: ev.url, team1: ev.team1, team2: ev.team2, odds });
+    if (odds) out.push({ bookmaker, url: ev.url, team1, team2, odds, dateKey: parseDateKey(window) });
   }
   return out;
 }
@@ -91,15 +140,18 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
   const out: RawEvent[] = [];
   const rowRe = /^\|\s*\d+\s*\|\s*\[[\d:]+\]\([^)]+\)\s*\|\s*\[([^\]]+?)\]\((https?:\/\/[^)]+?)\)\s*\|(.*)$/;
   const oddRe = /\[(\d{1,2}\.\d{2})\]/g;
+  let currentDateKey: string | undefined;
   for (const line of md.split("\n")) {
+    currentDateKey = parseDateKey(line) ?? currentDateKey;
     const m = line.match(rowRe);
     if (!m) continue;
-    const teamRaw = m[1].replace(/\\-/g, "-");
+    const teamRaw = cleanParticipantName(m[1]);
+    if (isSideMarket(m[1])) continue;
     // require " - " separator (not part of multi-word teams)
     const sepIdx = teamRaw.search(/\s-\s/);
     if (sepIdx < 0) continue;
-    const team1 = teamRaw.slice(0, sepIdx).trim();
-    const team2 = teamRaw.slice(sepIdx + 3).trim();
+    const team1 = cleanParticipantName(teamRaw.slice(0, sepIdx));
+    const team2 = cleanParticipantName(teamRaw.slice(sepIdx + 3));
     const url = m[2];
     if (isJunkEvent(team1, team2, url)) continue;
     // skip props like "(Угловые)", "(ЖК)", "(xG...)"
@@ -113,7 +165,7 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
     if (odds.length < 3) continue;
     const a = odds.slice(0, 3) as [number, number, number];
     if (!a.every((x) => x > 1.01 && x < 100)) continue;
-    out.push({ bookmaker, url, team1, team2, odds: a });
+    out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(line) ?? currentDateKey });
   }
   return out;
 }
@@ -135,8 +187,8 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(rowRe);
     if (!m) continue;
-    const team1 = m[1].trim();
-    const team2 = m[3].trim();
+    const team1 = cleanParticipantName(m[1]);
+    const team2 = cleanParticipantName(m[3]);
     const url = m[2];
     if (isJunkEvent(team1, team2, url)) continue;
     // Look for odds row in next ~6 lines, with leading "| +<digits> |" or just three odds
@@ -145,7 +197,7 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
       if (oddsMatches && oddsMatches.length >= 3 && lines[j].includes("|")) {
         const a = oddsMatches.slice(0, 3).map(Number) as [number, number, number];
         if (a.every((x) => x > 1.01 && x < 100)) {
-          out.push({ bookmaker, url, team1, team2, odds: a });
+          out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(lines[i]) });
           break;
         }
       }
@@ -193,11 +245,20 @@ function normTeam(name: string): string {
   return s;
 }
 
-function eventKey(team1: string, team2: string): string {
+function canonicalEvent(team1: string, team2: string, dateKey?: string): { key: string; flip: boolean; display: string } {
   const a = normTeam(team1);
   const b = normTeam(team2);
-  // order-independent so home/away swaps still match
-  return [a, b].sort().join("|");
+  const flip = a > b;
+  const pair = flip ? `${b}|${a}` : `${a}|${b}`;
+  return {
+    key: `${dateKey ?? "no-date"}|${pair}`,
+    flip,
+    display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
+  };
+}
+
+function displayKey(key: string): string {
+  return key.replace(/^(?:no-date|\d{2}\.\d{2})\|/, "");
 }
 
 export const scanRussianBookies = createServerFn({ method: "POST" })
@@ -235,20 +296,18 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const odds: OddRow[] = [];
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const key = eventKey(ev.team1, ev.team2);
-        const outcomes: [string, number][] = [
-          ["1", ev.odds[0]],
-          ["X", ev.odds[1]],
-          ["2", ev.odds[2]],
-        ];
+        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
+        const outcomes: [string, number][] = canonical.flip
+          ? [["1", ev.odds[2]], ["X", ev.odds[1]], ["2", ev.odds[0]]]
+          : [["1", ev.odds[0]], ["X", ev.odds[1]], ["2", ev.odds[2]]];
         for (const [outcome, val] of outcomes) {
           odds.push({
-            id: `${br.name}-${key}-${outcome}`,
+            id: `${br.name}-${canonical.key}-${outcome}`,
             bookmaker_id: br.name,
             bookmaker_name: br.name,
             sport: "Football",
             tournament: null,
-            event_name: key, // canonical key for grouping
+            event_name: canonical.key, // canonical key for grouping includes date to avoid mixing fixtures
             event_time: null,
             market: "1X2",
             outcome,
@@ -262,10 +321,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = eventKey(ev.team1, ev.team2);
+        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
         const isCyr = /[а-яё]/i.test(ev.team1);
-        if (!displayMap.has(k) || isCyr) {
-          displayMap.set(k, `${ev.team1} — ${ev.team2}`);
+        if (!displayMap.has(canonical.key) || isCyr) {
+          displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
         }
       }
     }
@@ -273,7 +332,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const arbs = findArbitrages(odds, data.stake, data.minRoi);
     const arbsDisplay: Arb[] = arbs.map((a) => ({
       ...a,
-      event_name: displayMap.get(a.event_name) ?? a.event_name,
+      event_name: displayMap.get(a.event_name) ?? displayKey(a.event_name),
     }));
 
     // === Top matched events (present in 2+ bookies) ===
@@ -283,7 +342,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = eventKey(ev.team1, ev.team2);
+        const k = canonicalEvent(ev.team1, ev.team2, ev.dateKey).key;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
@@ -315,7 +374,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       const arbPercent = best.reduce((s, l) => s + 1 / l.odds, 0);
       const bmUrls = urlMap.get(key);
       matched.push({
-        event_name: displayMap.get(key) ?? key,
+        event_name: displayMap.get(key) ?? displayKey(key),
         arbPercent,
         bookies: Array.from(bmSet).map((n) => ({ name: n, url: bmUrls?.get(n) ?? "" })),
         best,
