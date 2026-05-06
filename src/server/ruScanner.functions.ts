@@ -8,9 +8,15 @@ interface RawEvent {
   url: string;
   team1: string;
   team2: string;
-  odds: [number, number, number]; // 1, X, 2
+  odds?: [number, number, number]; // legacy 1, X, 2 fallback
+  markets?: RawMarket[];
   dateKey?: string; // dd.mm; used to avoid mixing different matches with same teams
   league?: string;  // canonical league code, derived from URL or context
+}
+
+interface RawMarket {
+  market: string;
+  selections: { outcome: string; odds: number }[];
 }
 
 async function fcScrape(url: string, waitFor = 6000): Promise<string> {
@@ -60,6 +66,65 @@ function parseOdds3(s: string): [number, number, number] | null {
     if (a.every((x) => x > 1.01 && x < 100)) return a;
   }
   return null;
+}
+
+function validOdd(n: number): boolean {
+  return Number.isFinite(n) && n > 1.01 && n < 500;
+}
+
+function fmtLine(n: number): string {
+  return Object.is(n, -0) || n === 0 ? "0" : String(Number(n.toFixed(2)));
+}
+
+function numberFromText(text: string): number | undefined {
+  const m = text.replace(/,/g, ".").match(/[+-]?\d{1,3}(?:\.\d{1,3})?/);
+  return m ? Number(m[0]) : undefined;
+}
+
+function oddFromText(text: string): number | undefined {
+  const all = text.replace(/,/g, ".").match(/\d{1,3}(?:\.\d{1,3})?/g);
+  if (!all?.length) return undefined;
+  const n = Number(all[all.length - 1]);
+  return validOdd(n) ? n : undefined;
+}
+
+function addMarket(markets: RawMarket[], market: string, selections: { outcome: string; odds?: number }[]) {
+  const cleanSelections = selections
+    .filter((s): s is { outcome: string; odds: number } => typeof s.odds === "number" && validOdd(s.odds))
+    .filter((s, idx, arr) => arr.findIndex((x) => x.outcome === s.outcome) === idx);
+  if (cleanSelections.length >= 2) markets.push({ market, selections: cleanSelections });
+}
+
+function legacyMarkets(odds?: [number, number, number]): RawMarket[] {
+  const markets: RawMarket[] = [];
+  if (odds) addMarket(markets, "1X2", [
+    { outcome: "1", odds: odds[0] },
+    { outcome: "X", odds: odds[1] },
+    { outcome: "2", odds: odds[2] },
+  ]);
+  return markets;
+}
+
+function parseParenOddCell(cell: string): { line?: number; odd?: number } {
+  const normalized = cell.replace(/<br\s*\/?>/gi, " ").replace(/[\u2000-\u200a\u202f\u00a0]/g, " ");
+  const line = normalized.match(/\(([+-]?\d+(?:[.,]\d+)?)\)/)?.[1];
+  return { line: line ? Number(line.replace(",", ".")) : numberFromText(normalized), odd: oddFromText(normalized) };
+}
+
+function parseWinlineTotal(lines: string[]): RawMarket[] {
+  const markets: RawMarket[] = [];
+  for (let i = 1; i < lines.length - 1; i++) {
+    const prevOdd = oddFromText(lines[i - 1]);
+    const label = lines[i].match(/^М\s*([0-9]+(?:[.,][0-9]+)?)\s*Б$/i);
+    const nextOdd = oddFromText(lines[i + 1]);
+    if (prevOdd && label && nextOdd) {
+      addMarket(markets, `Тотал ${fmtLine(Number(label[1].replace(",", ".")))}`, [
+        { outcome: "М", odds: prevOdd },
+        { outcome: "Б", odds: nextOdd },
+      ]);
+    }
+  }
+  return markets;
 }
 
 const MONTHS: Record<string, string> = {
