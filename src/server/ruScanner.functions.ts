@@ -624,6 +624,110 @@ function displayKey(key: string): string {
   return key.split("|").slice(1).join(" — ");
 }
 
+// === Fuzzy similarity (Dice coefficient on character bigrams) ===
+function bigrams(s: string): Set<string> {
+  const out = new Set<string>();
+  const t = s.replace(/_/g, "");
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+function dice(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const A = bigrams(a), B = bigrams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+// Token-level Jaccard for multi-word names
+function tokenJaccard(a: string, b: string): number {
+  const A = new Set(a.split("_").filter(Boolean));
+  const B = new Set(b.split("_").filter(Boolean));
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / new Set([...A, ...B]).size;
+}
+function teamSim(a: string, b: string): number {
+  if (a === b) return 1;
+  // accept either strong char similarity OR shared token
+  return Math.max(dice(a, b), tokenJaccard(a, b));
+}
+const SIM_THRESHOLD = 0.72;
+
+// Union-find
+class UF {
+  p = new Map<string, string>();
+  find(x: string): string {
+    if (!this.p.has(x)) { this.p.set(x, x); return x; }
+    let r = x;
+    while (this.p.get(r)! !== r) r = this.p.get(r)!;
+    let c = x;
+    while (this.p.get(c)! !== c) { const n = this.p.get(c)!; this.p.set(c, r); c = n; }
+    return r;
+  }
+  union(a: string, b: string) {
+    const ra = this.find(a), rb = this.find(b);
+    if (ra === rb) return;
+    // Keep lexicographically smaller as root for stability
+    if (ra < rb) this.p.set(rb, ra); else this.p.set(ra, rb);
+  }
+}
+
+// Cluster canonical keys by fuzzy team-pair similarity within same dateKey.
+// Returns map: originalKey → clusterRootKey, plus a list of merge logs.
+function clusterEventKeys(
+  meta: Map<string, { sigA: string; sigB: string; dateKey: string; samples: Set<string> }>,
+): { remap: Map<string, string>; merges: { from: string; into: string; sample: string }[] } {
+  const uf = new UF();
+  const keys = Array.from(meta.keys());
+  // Bucket by dateKey to limit O(n²) cost
+  const byDate = new Map<string, string[]>();
+  for (const k of keys) {
+    const d = meta.get(k)!.dateKey;
+    const arr = byDate.get(d) ?? [];
+    arr.push(k);
+    byDate.set(d, arr);
+  }
+  const merges: { from: string; into: string; sample: string }[] = [];
+  for (const [, group] of byDate) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const A = meta.get(group[i])!;
+        const B = meta.get(group[j])!;
+        // try both orientations
+        const direct = Math.min(teamSim(A.sigA, B.sigA), teamSim(A.sigB, B.sigB));
+        const flipped = Math.min(teamSim(A.sigA, B.sigB), teamSim(A.sigB, B.sigA));
+        const score = Math.max(direct, flipped);
+        if (score >= SIM_THRESHOLD) {
+          uf.union(group[i], group[j]);
+        }
+      }
+    }
+  }
+  const remap = new Map<string, string>();
+  for (const k of keys) remap.set(k, uf.find(k));
+  // Build merge log: for each non-trivial cluster, list members
+  const clusters = new Map<string, string[]>();
+  for (const k of keys) {
+    const r = uf.find(k);
+    const arr = clusters.get(r) ?? [];
+    arr.push(k);
+    clusters.set(r, arr);
+  }
+  for (const [root, members] of clusters) {
+    if (members.length < 2) continue;
+    const rootSample = Array.from(meta.get(root)!.samples)[0] ?? root;
+    for (const m of members) {
+      if (m === root) continue;
+      const sample = Array.from(meta.get(m)!.samples)[0] ?? m;
+      merges.push({ from: sample, into: rootSample, sample: m });
+    }
+  }
+  return { remap, merges };
+}
+
 function orientMarkets(markets: RawMarket[], flip: boolean): RawMarket[] {
   if (!flip) return markets;
   const swapOutcome = (outcome: string) => outcome
@@ -676,9 +780,19 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
 
     // Build OddRow entries; key events by canonical team pair
     const odds: OddRow[] = [];
+    const keyMeta = new Map<string, { sigA: string; sigB: string; dateKey: string; samples: Set<string> }>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
         const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
+        const sigA = teamSig(ev.team1);
+        const sigB = teamSig(ev.team2);
+        const [lo, hi] = sigA < sigB ? [sigA, sigB] : [sigB, sigA];
+        let meta = keyMeta.get(canonical.key);
+        if (!meta) {
+          meta = { sigA: lo, sigB: hi, dateKey: ev.dateKey ?? "date-any", samples: new Set() };
+          keyMeta.set(canonical.key, meta);
+        }
+        meta.samples.add(canonical.display);
         const markets = orientMarkets(ev.markets?.length ? ev.markets : legacyMarkets(ev.odds), canonical.flip);
         for (const market of markets) {
           for (const selection of market.selections) {
@@ -700,14 +814,30 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       }
     }
 
+    // Fuzzy-cluster canonical keys (handles "Спартак М" vs "Спартак Москва", etc.)
+    const { remap, merges } = clusterEventKeys(keyMeta);
+    if (merges.length) {
+      console.log(`[ruScanner] merged ${merges.length} fuzzy team-pair groups:`);
+      for (const m of merges.slice(0, 50)) {
+        console.log(`  • "${m.from}" → "${m.into}"`);
+      }
+    } else {
+      console.log("[ruScanner] no fuzzy merges this run");
+    }
+    for (const o of odds) {
+      o.event_name = remap.get(o.event_name) ?? o.event_name;
+      o.id = `${o.bookmaker_id}-${o.event_name}-${o.market}-${o.outcome}`;
+    }
+
     // Map canonical key → display name (prefer Russian)
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
         const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
+        const root = remap.get(canonical.key) ?? canonical.key;
         const isCyr = /[а-яё]/i.test(ev.team1);
-        if (!displayMap.has(canonical.key) || isCyr) {
-          displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
+        if (!displayMap.has(root) || isCyr) {
+          displayMap.set(root, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
         }
       }
     }
@@ -719,13 +849,13 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     }));
 
     // === Top matched events (present in 2+ bookies) ===
-    // Group canonical key → outcome → list of {bm, odds, url}
     type Pick = { bm: string; odds: number; url: string };
     const grouped = new Map<string, Map<string, Pick[]>>();
-    const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
+    const urlMap = new Map<string, Map<string, string>>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey).key;
+        const k0 = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey).key;
+        const k = remap.get(k0) ?? k0;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
