@@ -166,7 +166,16 @@ const LINK_EVENT_2SP = /^\[([^[\]]+?)\s{2,}([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/
 function parseEventLine(line: string): { team1: string; team2: string; url: string } | null {
   let m = line.match(LINK_EVENT);
   if (!m) m = line.match(LINK_EVENT_2SP);
-  if (!m) return null;
+  if (!m) {
+    const pipe = line.match(LINK_EVENT_PIPE);
+    const parts = pipe?.[1]
+      ?.replace(/\\/g, "")
+      .split("|")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (pipe && parts && parts.length >= 2) return { team1: parts[0], team2: parts[parts.length - 1], url: pipe[2] };
+    return null;
+  }
   return { team1: m[1].trim(), team2: m[2].trim(), url: m[3] };
 }
 
