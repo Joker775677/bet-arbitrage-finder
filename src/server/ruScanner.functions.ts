@@ -210,6 +210,8 @@ async function fcExtractList(url: string, sportHint?: string): Promise<Extracted
         removeBase64Images: true,
         timeout: 75000,
         location: { country: "RU", languages: ["ru-RU"] },
+        proxy: "stealth",
+        mobile: true,
       }),
     });
     const j: any = await r.json();
