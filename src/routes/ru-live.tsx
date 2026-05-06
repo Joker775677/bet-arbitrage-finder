@@ -130,6 +130,19 @@ function RuLivePage() {
     }
   }, [prBusy, importPr]);
 
+  const runLeon = useCallback(async () => {
+    if (lnBusy) return;
+    setLnBusy(true);
+    try {
+      const res = await importLn({});
+      toast.success(`Leon API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Leon API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setLnBusy(false);
+    }
+  }, [lnBusy, importLn]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
