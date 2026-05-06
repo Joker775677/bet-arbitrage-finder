@@ -391,5 +391,117 @@ app.get("/leon", async (req, res) => {
   }
 });
 
+// ============== Zenit (zenit.win) direct JSON API ==============
+// Открытый JSON-API: требует только imprintHash (любой 32-hex).
+const ZENIT_URLS = {
+  live: "https://zenit.win/ajax/live/printer/",
+  line: "https://zenit.win/ajax/line/printer/ranked?onlyview=0&lang_id=1",
+};
+const ZENIT_IMPRINT = "abcdef0123456789abcdef0123456789";
+
+// o (outcome id из dict.odd) -> {market, outcome template}. Линия берётся из oddKey: "eventId|col|line".
+function mapZenitOutcome(o, line) {
+  switch (o) {
+    case 1: return { market: "1X2", outcome: "1" };
+    case 2: return { market: "1X2", outcome: "X" };
+    case 3: return { market: "1X2", outcome: "2" };
+    case 4: return { market: "DC",  outcome: "1X" };
+    case 5: return { market: "DC",  outcome: "12" };
+    case 6: return { market: "DC",  outcome: "X2" };
+    case 7: return line != null ? { market: "HANDICAP", outcome: `1 ${line}` } : null;
+    case 8: return line != null ? { market: "HANDICAP", outcome: `2 ${line}` } : null;
+    case 9: return line != null ? { market: "TOTAL", outcome: `UNDER ${line}` } : null;
+    case 10: return line != null ? { market: "TOTAL", outcome: `OVER ${line}` } : null;
+    default: return null;
+  }
+}
+
+async function fetchZenitFeed(url) {
+  const proxyUrl = pickProxyUrl();
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+  const res = await undiciFetch(url, {
+    dispatcher,
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "ru-RU,ru;q=0.9",
+      Referer: "https://zenit.win/",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+      imprintHash: ZENIT_IMPRINT,
+      frontVersion: "1.0",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
+  if (!res.ok) throw new Error(`zenit ${url} status ${res.status}`);
+  return res.json();
+}
+
+function normalizeZenit(data, isLive) {
+  const cmd = (data.dict && data.dict.cmd) || {};
+  const leagueDict = (data.dict && data.dict.league) || {};
+  const sportDict = (data.dict && data.dict.sport) || {};
+  const games = data.games || {};
+  const out = [];
+  for (const gid of Object.keys(games)) {
+    const g = games[gid];
+    if (!g) continue;
+    const team1 = cmd[String(g.c1_id)];
+    const team2 = cmd[String(g.c2_id)];
+    if (!team1 || !team2) continue;
+    const sport = sportDict[String(g.sid)] || null;
+    const tournament = leagueDict[String(g.lid)] || null;
+    const odds = [];
+    const seen = new Set();
+    for (const f of g.f_l || []) {
+      if (typeof f.o !== "number" || typeof f.h !== "number" || f.h < 1.01) continue;
+      let line = null;
+      if (typeof f.oddKey === "string") {
+        const parts = f.oddKey.split("|");
+        if (parts.length >= 3) {
+          const v = parseFloat(parts[2]);
+          if (Number.isFinite(v)) line = v;
+        }
+      }
+      // для HANDICAP/TOTAL без линии не работаем
+      const mapped = mapZenitOutcome(f.o, line);
+      if (!mapped) continue;
+      const key = `${mapped.market}|${mapped.outcome}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      odds.push({ market: mapped.market, outcome: mapped.outcome, odds: f.h });
+    }
+    if (!odds.length) continue;
+    out.push({
+      eventId: g.id,
+      sport,
+      tournament,
+      team1,
+      team2,
+      eventName: `${team1} — ${team2}`,
+      startTime: g.time ? new Date(g.time * 1000).toISOString() : null,
+      live: isLive,
+      odds,
+    });
+  }
+  return out;
+}
+
+app.get("/zenit", async (req, res) => {
+  if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
+  const t0 = Date.now();
+  try {
+    const [liveData, lineData] = await Promise.all([
+      fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; }),
+      fetchZenitFeed(ZENIT_URLS.line).catch((e) => { console.log("[zenit] line", e?.message); return null; }),
+    ]);
+    if (!liveData && !lineData) throw new Error("no zenit feeds fetched");
+    const events = [];
+    if (liveData) events.push(...normalizeZenit(liveData, true));
+    if (lineData) events.push(...normalizeZenit(lineData, false));
+    return res.json({ ok: true, bookmaker: "zenit", eventsCount: events.length, ms: Date.now() - t0, events });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
+  }
+});
+
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}, proxies=${PROXIES.length}`));
 
