@@ -17,6 +17,21 @@ export const DEFAULT_SPORTS = [
   "mma_mixed_martial_arts",
 ];
 
+// Allow-list of bookmaker keys (The Odds API keys). Only these BMs will be considered.
+// Source: user-selected RU/CIS bookmakers.
+export const ALLOWED_BOOKMAKERS = new Set<string>([
+  "betboom",
+  "betcity",
+  "leon",
+  "ligastavok",
+  "marathonbet", // alt for some
+  "melbet",
+  "olimp",
+  "winline",
+  "zenit",
+]);
+
+
 export interface LiveScanResult {
   arbs: Arb[];
   eventsScanned: number;
