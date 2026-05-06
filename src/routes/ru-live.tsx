@@ -35,15 +35,6 @@ const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string 
 
 type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
 
-interface TopMatch {
-  event_name: string;
-  bookies: { name: string; url?: string }[];
-  best: { outcome: string; odds: number; bm: string }[];
-  arbPercent: number;
-}
-
-type DisplayResult = ScanResult & { topMatches?: TopMatch[] };
-
 interface DbEventRow {
   id: string;
   source: string;
