@@ -86,6 +86,38 @@ function parseGenericLine(lines: string[], bookmaker: string): RawEvent[] {
   return out;
 }
 
+// tennisi.bet — table rows: | num | [time](url) | [TeamA \- TeamB](url) | [odd1](url) | [oddX](url) | [odd2](url) | ...
+function parseTennisi(md: string, bookmaker: string): RawEvent[] {
+  const out: RawEvent[] = [];
+  const rowRe = /^\|\s*\d+\s*\|\s*\[[\d:]+\]\([^)]+\)\s*\|\s*\[([^\]]+?)\]\((https?:\/\/[^)]+?)\)\s*\|(.*)$/;
+  const oddRe = /\[(\d{1,2}\.\d{2})\]/g;
+  for (const line of md.split("\n")) {
+    const m = line.match(rowRe);
+    if (!m) continue;
+    const teamRaw = m[1].replace(/\\-/g, "-");
+    // require " - " separator (not part of multi-word teams)
+    const sepIdx = teamRaw.search(/\s-\s/);
+    if (sepIdx < 0) continue;
+    const team1 = teamRaw.slice(0, sepIdx).trim();
+    const team2 = teamRaw.slice(sepIdx + 3).trim();
+    const url = m[2];
+    if (isJunkEvent(team1, team2, url)) continue;
+    // skip props like "(Угловые)", "(ЖК)", "(xG...)"
+    if (/\(/.test(team1) || /\(/.test(team2)) continue;
+    if (/^Гибкий экспресс/i.test(team1)) continue;
+    const rest = m[3];
+    const odds: number[] = [];
+    let mm: RegExpExecArray | null;
+    oddRe.lastIndex = 0;
+    while ((mm = oddRe.exec(rest)) !== null) odds.push(Number(mm[1]));
+    if (odds.length < 3) continue;
+    const a = odds.slice(0, 3) as [number, number, number];
+    if (!a.every((x) => x > 1.01 && x < 100)) continue;
+    out.push({ bookmaker, url, team1, team2, odds: a });
+  }
+  return out;
+}
+
 // Marathonbet markdown stores events as table rows like:
 //   | Суперприз<br>**1.**<br>[Team1](url)<br>...<br>**2.**<br>[Team2](url)<br>... |
 //   | --- |
