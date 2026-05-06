@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Building2, Upload, Search, Target, Settings as SettingsIcon, TrendingUp, Radar } from "lucide-react";
+import { LayoutDashboard, Building2, Upload, Search, Target, Settings as SettingsIcon, TrendingUp, Radar, Zap } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
