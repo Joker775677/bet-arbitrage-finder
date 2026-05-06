@@ -186,9 +186,13 @@ function RuLivePage() {
               {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
               {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
             </Button>
-            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet — ~3000 матчей за 1 сек">
+            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet">
               {fbBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Fonbet API
+            </Button>
+            <Button onClick={runPari} disabled={prBusy} size="lg" variant="secondary" title="Прямой API Pari — ~8000 матчей">
+              {prBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Pari API
             </Button>
           </div>
         </div>
