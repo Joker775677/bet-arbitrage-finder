@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { findArbitrages, type OddRow, type Arb } from "@/lib/arbitrage";
+import { findArbitrages, findNearArbs, type OddRow, type Arb, type NearArb } from "@/lib/arbitrage";
 
 interface EngineOdd { market: string; outcome: string; odds: number }
 interface EngineEvent {
