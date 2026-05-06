@@ -10,6 +10,7 @@ interface RawEvent {
   team2: string;
   odds: [number, number, number]; // 1, X, 2
   dateKey?: string; // dd.mm; used to avoid mixing different matches with same teams
+  league?: string;  // canonical league code, derived from URL or context
 }
 
 async function fcScrape(url: string, waitFor = 6000): Promise<string> {
