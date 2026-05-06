@@ -27,9 +27,6 @@ interface SourceState {
   error?: string;
 }
 
-type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
-type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
-
 const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string }[] = [
   { name: "Fonbet", key: "fonbet", url: "https://www.fon.bet/live/" },
   { name: "Pari",   key: "pari",   url: "https://pari.ru/live/" },
