@@ -874,7 +874,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" || s.parser.endsWith("detail") ? 12000 : 6000);
+          const md = await fcScrape(s.url, s.parser.endsWith("detail") ? 4000 : 2500);
           const events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
