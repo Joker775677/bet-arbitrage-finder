@@ -83,13 +83,41 @@ function RuLivePage() {
       const fin = await finalize({ data: { stake, minRoi, results } });
       setR(fin);
       const ok = results.filter((x) => x.events.length > 0).length;
-      toast.success(`Готово: ${fin.arbs.length} вилок, ${ok}/${results.length} БК с событиями`);
+      // Save to DB (upsert + cleanup older than 24h)
+      try {
+        const saved = await persist({ data: { results } });
+        toast.success(`Готово: ${fin.arbs.length} вилок · ${ok}/${results.length} БК · в БД: ${saved.savedEvents} событий, ${saved.savedOdds} коэф.`);
+      } catch (e: any) {
+        toast.error(`Скан ОК, но в БД не записалось: ${e?.message ?? "ошибка"}`);
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Ошибка сканирования");
     } finally {
       setRunning(false);
     }
-  }, [running, scanOne, finalize, stake, minRoi]);
+  }, [running, scanOne, finalize, persist, stake, minRoi]);
+
+  // Load latest events from DB + subscribe to realtime
+  const loadDbEvents = useCallback(async () => {
+    const { data, count } = await supabase
+      .from("ru_events")
+      .select("id, source, event_name, league, sport, scanned_at", { count: "exact" })
+      .order("scanned_at", { ascending: false })
+      .limit(50);
+    setDbEvents((data ?? []) as DbEventRow[]);
+    setDbCount(count ?? 0);
+  }, []);
+
+  useEffect(() => {
+    void loadDbEvents();
+    const ch = supabase
+      .channel("ru_events_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ru_events" }, () => {
+        void loadDbEvents();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [loadDbEvents]);
 
   useEffect(() => {
     // первый автозапуск
