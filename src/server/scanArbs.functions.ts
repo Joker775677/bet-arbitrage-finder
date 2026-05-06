@@ -160,44 +160,88 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       error: f.error,
     }));
 
-    // 3. Строим OddRow из текущего снимка (без БД, чтобы не упустить свежесть)
-    const odds: OddRow[] = [];
-    const dateKeyMap = new Map<string, string>(); // canonicalKey -> dateKey
-    const displayMap = new Map<string, string>(); // canonicalKey -> human name
-    const urlMap = new Map<string, Map<string, string>>(); // canonicalKey -> bm -> url
-
+    // 3. Кластеризуем события из всех БК (fuzzy по токенам команд),
+    //    группируя по date_key + sport bucket.
+    interface RawEv {
+      bm: string;
+      ev: EngineEvent;
+      t1: string[]; t2: string[];
+      dk: string;
+      sportBucket: string;
+    }
+    const rawEvs: RawEv[] = [];
     for (const f of fetched) {
       if (f.error) continue;
       for (const ev of f.events) {
         if (!ev.team1 || !ev.team2 || !ev.odds?.length) continue;
-        const dk = dateKeyFromIso(ev.startTime);
-        const ckey = eventKey(ev.team1, ev.team2, dk);
-        dateKeyMap.set(ckey, dk);
-        const isCyr = /[а-яё]/i.test(ev.team1);
-        if (!displayMap.has(ckey) || isCyr) {
-          displayMap.set(ckey, `${ev.team1} — ${ev.team2}`);
-        }
-        let bmu = urlMap.get(ckey);
-        if (!bmu) { bmu = new Map(); urlMap.set(ckey, bmu); }
-        bmu.set(f.source, `${ENGINES[f.source as EngineKey].urlBase}${ev.eventId}`);
+        const t1 = tokenize(ev.team1);
+        const t2 = tokenize(ev.team2);
+        if (!t1.length || !t2.length) continue;
+        rawEvs.push({
+          bm: f.source,
+          ev,
+          t1, t2,
+          dk: dateKeyFromIso(ev.startTime),
+          sportBucket: norm(ev.sport ?? ""),
+        });
+      }
+    }
 
-        for (const o of ev.odds) {
-          if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
-          odds.push({
-            id: `${f.source}-${ckey}-${o.market}-${o.outcome}`,
-            bookmaker_id: f.source,
-            bookmaker_name: f.source,
-            sport: ev.sport ?? "Unknown",
-            tournament: ev.tournament,
-            event_name: ckey,
-            event_time: ev.startTime,
-            market: o.market,
-            outcome: o.outcome,
-            odds: o.odds,
-            url: `${ENGINES[f.source as EngineKey].urlBase}${ev.eventId}`,
-            live: !!ev.live,
-          });
+    // Union-find по группам (dk + sportBucket)
+    const parent = new Array(rawEvs.length).fill(0).map((_, i) => i);
+    const find = (i: number): number => parent[i] === i ? i : (parent[i] = find(parent[i]));
+    const union = (a: number, b: number) => { const x = find(a), y = find(b); if (x !== y) parent[x] = y; };
+
+    const buckets = new Map<string, number[]>();
+    for (let i = 0; i < rawEvs.length; i++) {
+      const r = rawEvs[i];
+      const bk = `${r.dk}|${r.sportBucket}`;
+      let arr = buckets.get(bk);
+      if (!arr) { arr = []; buckets.set(bk, arr); }
+      arr.push(i);
+    }
+    for (const arr of buckets.values()) {
+      // O(n^2) внутри bucket'а — bucket'ы небольшие
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const a = rawEvs[arr[i]], b = rawEvs[arr[j]];
+          if (a.bm === b.bm) continue; // внутри одного БК не сливаем
+          if (pairMatch(a.t1, a.t2, b.t1, b.t2)) union(arr[i], arr[j]);
         }
+      }
+    }
+
+    const odds: OddRow[] = [];
+    const displayMap = new Map<string, string>();
+    const clusterBmCount = new Map<string, Set<string>>();
+
+    for (let i = 0; i < rawEvs.length; i++) {
+      const r = rawEvs[i];
+      const root = find(i);
+      const ckey = `cluster-${root}`;
+      const isCyr = /[а-яё]/i.test(r.ev.team1);
+      if (!displayMap.has(ckey) || isCyr) {
+        displayMap.set(ckey, `${r.ev.team1} — ${r.ev.team2}`);
+      }
+      let s = clusterBmCount.get(ckey);
+      if (!s) { s = new Set(); clusterBmCount.set(ckey, s); }
+      s.add(r.bm);
+      for (const o of r.ev.odds) {
+        if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
+        odds.push({
+          id: `${r.bm}-${ckey}-${o.market}-${o.outcome}`,
+          bookmaker_id: r.bm,
+          bookmaker_name: r.bm,
+          sport: r.ev.sport ?? "Unknown",
+          tournament: r.ev.tournament,
+          event_name: ckey,
+          event_time: r.ev.startTime,
+          market: o.market,
+          outcome: o.outcome,
+          odds: o.odds,
+          url: `${ENGINES[r.bm as EngineKey].urlBase}${r.ev.eventId}`,
+          live: !!r.ev.live,
+        });
       }
     }
 
