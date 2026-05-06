@@ -168,10 +168,16 @@ function RuLivePage() {
             <Label>Мин. ROI, %</Label>
             <Input type="number" step="0.1" value={minRoi} onChange={(e) => setMinRoi(Number(e.target.value) || 0)} disabled={running} />
           </div>
-          <Button onClick={run} disabled={running} size="lg">
-            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
-            {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={run} disabled={running} size="lg">
+              {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
+              {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
+            </Button>
+            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet — ~3000 матчей за 1 сек">
+              {fbBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Fonbet API
+            </Button>
+          </div>
         </div>
       </Card>
 
