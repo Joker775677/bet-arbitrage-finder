@@ -639,8 +639,9 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       }
     }
     for (const o of odds) {
-      let m1 = grouped.get(o.event_name);
-      if (!m1) { m1 = new Map(); grouped.set(o.event_name, m1); }
+      const groupKey = `${o.event_name}|${o.market}`;
+      let m1 = grouped.get(groupKey);
+      if (!m1) { m1 = new Map(); grouped.set(groupKey, m1); }
       const arr = m1.get(o.outcome) ?? [];
       const bm = o.bookmaker_name ?? o.bookmaker_id;
       arr.push({ bm, odds: o.odds, url: urlMap.get(o.event_name)?.get(bm) ?? "" });
@@ -653,18 +654,19 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       best: { outcome: string; odds: number; bm: string }[];
     }[] = [];
     for (const [key, outcomes] of grouped) {
+      const [eventKey, marketName] = key.split(/\|(?=[^|]+$)/);
       const bmSet = new Set<string>();
       for (const arr of outcomes.values()) for (const p of arr) bmSet.add(p.bm);
       if (bmSet.size < 2) continue;
-      if (outcomes.size < 3) continue;
+      if (outcomes.size < 2) continue;
       const best = Array.from(outcomes.entries()).map(([outcome, arr]) => {
         const top = arr.reduce((a, b) => (b.odds > a.odds ? b : a));
         return { outcome, odds: top.odds, bm: top.bm };
       });
       const arbPercent = best.reduce((s, l) => s + 1 / l.odds, 0);
-      const bmUrls = urlMap.get(key);
+      const bmUrls = urlMap.get(eventKey);
       matched.push({
-        event_name: displayMap.get(key) ?? displayKey(key),
+        event_name: `${displayMap.get(eventKey) ?? displayKey(eventKey)} · ${marketName}`,
         arbPercent,
         bookies: Array.from(bmSet).map((n) => ({ name: n, url: bmUrls?.get(n) ?? "" })),
         best,
