@@ -25,6 +25,61 @@ const OUTCOMES: Record<Market, string[]> = {
 
 const BOOKIES = ["Winline", "Betcity", "Fonbet", "Лига Ставок", "Pari", "Олимпбет", "BetBoom", "1xBet"];
 
+// Normalize outcome tokens: "П1"/"1"/"home" → "1", "Х"/"X"/"draw" → "X", "П2"/"2"/"away" → "2"
+function normOutcome(raw: string): string | null {
+  const s = raw.trim().toLowerCase().replace(/[.:)]+$/, "");
+  if (["1", "п1", "home", "h", "хозяева", "first"].includes(s)) return "1";
+  if (["x", "х", "draw", "d", "ничья", "n"].includes(s)) return "X";
+  if (["2", "п2", "away", "a", "гости", "second"].includes(s)) return "2";
+  return null;
+}
+
+// Detect bookmaker from a line. Returns canonical name or null.
+function detectBookie(line: string): string | null {
+  const low = line.toLowerCase();
+  for (const b of BOOKIES) {
+    if (low.includes(b.toLowerCase())) return b;
+  }
+  return null;
+}
+
+// Parse a chunk of text → odds map. Supports "1=2.10", "1: 2.10", "1 2.10", "П1 2.10", commas.
+function parseOddsChunk(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  // Find all (token, number) pairs. Token is letters/П1/Х/etc, number is decimal.
+  const re = /([A-Za-zА-Яа-я]?\d?|[ХXxХх])\s*[=:\s]\s*(\d+(?:[.,]\d+)?)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const key = normOutcome(m[1]);
+    const val = m[2].replace(",", ".");
+    if (key && Number(val) > 1) out[key] = val;
+  }
+  return out;
+}
+
+// Parse full paste: tries to split into bookie blocks.
+function parsePaste(text: string): { bookie: string | null; odds: Record<string, string> }[] {
+  const blocks: { bookie: string | null; odds: Record<string, string> }[] = [];
+  // Split by lines, group consecutive lines per detected bookie.
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let current: { bookie: string | null; lines: string[] } | null = null;
+  for (const line of lines) {
+    const bm = detectBookie(line);
+    if (bm) {
+      if (current) blocks.push({ bookie: current.bookie, odds: parseOddsChunk(current.lines.join(" ")) });
+      current = { bookie: bm, lines: [line] };
+    } else if (current) {
+      current.lines.push(line);
+    } else {
+      current = { bookie: null, lines: [line] };
+    }
+  }
+  if (current) blocks.push({ bookie: current.bookie, odds: parseOddsChunk(current.lines.join(" ")) });
+  // If no bookie detected anywhere AND text has both blocks separated by blank line, fallback
+  return blocks.filter((b) => Object.keys(b.odds).length > 0);
+}
+
+
 function QuickPage() {
   const [event, setEvent] = useState("");
   const [market, setMarket] = useState<Market>("1X2");
