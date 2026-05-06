@@ -586,23 +586,23 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     for (const br of bookieResults) {
       for (const ev of br.events) {
         const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
-        const outcomes: [string, number][] = canonical.flip
-          ? [["1", ev.odds[2]], ["X", ev.odds[1]], ["2", ev.odds[0]]]
-          : [["1", ev.odds[0]], ["X", ev.odds[1]], ["2", ev.odds[2]]];
-        for (const [outcome, val] of outcomes) {
-          odds.push({
-            id: `${br.name}-${canonical.key}-${outcome}`,
-            bookmaker_id: br.name,
-            bookmaker_name: br.name,
-            sport: "Football",
-            tournament: null,
-            event_name: canonical.key,
-            event_time: null,
-            market: "1X2",
-            outcome,
-            odds: val,
-            url: ev.url,
-          });
+        const markets = orientMarkets(ev.markets?.length ? ev.markets : legacyMarkets(ev.odds), canonical.flip);
+        for (const market of markets) {
+          for (const selection of market.selections) {
+            odds.push({
+              id: `${br.name}-${canonical.key}-${market.market}-${selection.outcome}`,
+              bookmaker_id: br.name,
+              bookmaker_name: br.name,
+              sport: "Football",
+              tournament: null,
+              event_name: canonical.key,
+              event_time: null,
+              market: market.market,
+              outcome: selection.outcome,
+              odds: selection.odds,
+              url: ev.url,
+            });
+          }
         }
       }
     }
