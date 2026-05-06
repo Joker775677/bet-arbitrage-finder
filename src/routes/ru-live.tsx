@@ -215,6 +215,10 @@ function RuLivePage() {
               {lnBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Leon API
             </Button>
+            <Button onClick={runZenit} disabled={znBusy} size="lg" variant="secondary" title="Прямой API Zenit">
+              {znBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Zenit API
+            </Button>
           </div>
         </div>
       </Card>
