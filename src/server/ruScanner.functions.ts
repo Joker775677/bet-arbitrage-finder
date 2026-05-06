@@ -118,10 +118,12 @@ function parseGenericLine(lines: string[], bookmaker: string): RawEvent[] {
   for (let i = 0; i < lines.length; i++) {
     const ev = parseEventLine(lines[i]);
     if (!ev) continue;
-    if (isJunkEvent(ev.team1, ev.team2, ev.url)) continue;
-    const window = lines.slice(i + 1, i + 6).join(" ");
+    const team1 = cleanParticipantName(ev.team1);
+    const team2 = cleanParticipantName(ev.team2);
+    if (isJunkEvent(team1, team2, ev.url)) continue;
+    const window = lines.slice(i + 1, i + 8).join(" ");
     const odds = parseOdds3(window) ?? parseOdds3(lines[i + 1] ?? "");
-    if (odds) out.push({ bookmaker, url: ev.url, team1: ev.team1, team2: ev.team2, odds });
+    if (odds) out.push({ bookmaker, url: ev.url, team1, team2, odds, dateKey: parseDateKey(window) });
   }
   return out;
 }
@@ -134,12 +136,13 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
   for (const line of md.split("\n")) {
     const m = line.match(rowRe);
     if (!m) continue;
-    const teamRaw = m[1].replace(/\\-/g, "-");
+    const teamRaw = cleanParticipantName(m[1]);
+    if (isSideMarket(m[1])) continue;
     // require " - " separator (not part of multi-word teams)
     const sepIdx = teamRaw.search(/\s-\s/);
     if (sepIdx < 0) continue;
-    const team1 = teamRaw.slice(0, sepIdx).trim();
-    const team2 = teamRaw.slice(sepIdx + 3).trim();
+    const team1 = cleanParticipantName(teamRaw.slice(0, sepIdx));
+    const team2 = cleanParticipantName(teamRaw.slice(sepIdx + 3));
     const url = m[2];
     if (isJunkEvent(team1, team2, url)) continue;
     // skip props like "(Угловые)", "(ЖК)", "(xG...)"
@@ -153,7 +156,7 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
     if (odds.length < 3) continue;
     const a = odds.slice(0, 3) as [number, number, number];
     if (!a.every((x) => x > 1.01 && x < 100)) continue;
-    out.push({ bookmaker, url, team1, team2, odds: a });
+    out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(line) });
   }
   return out;
 }
