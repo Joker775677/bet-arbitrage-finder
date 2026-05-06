@@ -20,7 +20,7 @@ interface RawMarket {
   selections: { outcome: string; odds: number }[];
 }
 
-async function fcScrape(url: string, waitFor = 4000): Promise<string> {
+async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) throw new Error("FIRECRAWL_API_KEY not configured");
   const ctrl = new AbortController();
@@ -35,7 +35,7 @@ async function fcScrape(url: string, waitFor = 4000): Promise<string> {
         formats: ["markdown"],
         onlyMainContent: true,
         waitFor,
-        maxAge: 120000, // allow 2-min Firecrawl cache → faster + less timeouts
+        maxAge: 120000,
         removeBase64Images: true,
         timeout: 50000,
         location: { country: "RU", languages: ["ru-RU"] },
@@ -47,6 +47,24 @@ async function fcScrape(url: string, waitFor = 4000): Promise<string> {
   } finally {
     clearTimeout(t);
   }
+}
+
+async function fcScrape(url: string, waitFor = 4000): Promise<string> {
+  // Retry on timeout / transient failures — РУ-БК капризные
+  let lastErr: any;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const md = await fcScrapeOnce(url, waitFor);
+      if (md && md.length > 200) return md;
+      lastErr = new Error("empty markdown");
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.message ?? "");
+      if (!/TIMEOUT|aborted|429|502|503|504|empty/i.test(msg)) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  throw lastErr ?? new Error("fcScrape failed");
 }
 
 interface ExtractedEventJSON {
