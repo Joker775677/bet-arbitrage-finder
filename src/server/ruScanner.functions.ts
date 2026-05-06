@@ -55,6 +55,27 @@ async function fcScrapeOnce(url: string, waitFor: number): Promise<string> {
   }
 }
 
+async function ruScraperFetch(url: string, waitFor: number): Promise<string> {
+  const base = process.env.SCRAPER_URL;
+  const token = process.env.SCRAPER_TOKEN;
+  if (!base || !token) throw new Error("SCRAPER_URL/SCRAPER_TOKEN not configured");
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const r = await fetch(`${base.replace(/\/+$/, "")}/scrape`, {
+      method: "POST",
+      headers: { "x-token": token, "content-type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({ url, waitFor: Math.min(waitFor, 8000) }),
+    });
+    const j: any = await r.json();
+    if (!j?.ok) throw new Error(`ru-scraper: ${j?.error ?? r.status}`);
+    return j.markdown ?? "";
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function fcScrape(url: string, waitFor = 4000): Promise<string> {
   // Stealth proxy requests are slow and expensive; keep each source under the server timeout.
   let lastErr: any;
@@ -69,6 +90,16 @@ async function fcScrape(url: string, waitFor = 4000): Promise<string> {
       if (!/TIMEOUT|aborted|429|502|503|504|empty/i.test(msg)) throw e;
     }
     await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  // Fallback: our own RU proxy scraper
+  if (process.env.SCRAPER_URL && process.env.SCRAPER_TOKEN) {
+    try {
+      console.log(`[ruScanner] firecrawl failed for ${url}, falling back to ru-scraper`);
+      const md = await ruScraperFetch(url, waitFor);
+      if (md && md.length > 200) return md;
+    } catch (e: any) {
+      console.log(`[ruScanner] ru-scraper fallback failed for ${url}: ${e?.message}`);
+    }
   }
   throw lastErr ?? new Error("fcScrape failed");
 }
