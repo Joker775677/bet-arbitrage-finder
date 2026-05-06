@@ -123,6 +123,8 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
         removeBase64Images: true,
         timeout: 65000,
         location: { country: "RU", languages: ["ru-RU"] },
+        proxy: "stealth",
+        mobile: true,
       }),
     });
     const j: any = await r.json();
