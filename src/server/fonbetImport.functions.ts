@@ -146,3 +146,4 @@ async function importEngine(engine: EngineKey) {
 
 export const importFonbet = createServerFn({ method: "POST" }).handler(() => importEngine("fonbet"));
 export const importPari   = createServerFn({ method: "POST" }).handler(() => importEngine("pari"));
+export const importLeon   = createServerFn({ method: "POST" }).handler(() => importEngine("leon"));
