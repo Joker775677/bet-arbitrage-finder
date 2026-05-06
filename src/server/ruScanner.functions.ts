@@ -976,7 +976,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
           if (s.parser === "winline-detail" || s.parser === "leon-detail") {
             const extracted = await fcExtractEvent(s.url);
             const events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
-            console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets.length ?? 0}`);
+            console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets?.length ?? 0}`);
             bookieResults.push({ name: s.name, events });
             return;
           }
