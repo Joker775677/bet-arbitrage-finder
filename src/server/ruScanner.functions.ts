@@ -161,9 +161,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources = [
-      { name: "Winline", url: "https://winline.ru/stavki/futbol/" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports/football" },
+    const sources: { name: string; url: string; parser: "generic" | "marathon" }[] = [
+      { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
+      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "generic" },
+      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
@@ -171,8 +172,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       sources.map(async (s) => {
         try {
           const md = await fcScrape(s.url);
-          const lines = clean(md);
-          const events = parseGenericLine(lines, s.name);
+          const events =
+            s.parser === "marathon"
+              ? parseMarathonbet(md, s.name)
+              : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
