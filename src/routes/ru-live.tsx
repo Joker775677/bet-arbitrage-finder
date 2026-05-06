@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { importFonbet, importPari, importLeon } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari, importLeon, importZenit } from "@/server/fonbetImport.functions";
 import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap } from "lucide-react";
@@ -27,10 +27,11 @@ interface SourceState {
   error?: string;
 }
 
-const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon"; url: string }[] = [
+const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon" | "zenit"; url: string }[] = [
   { name: "Fonbet", key: "fonbet", url: "https://www.fon.bet/live/" },
   { name: "Pari",   key: "pari",   url: "https://pari.ru/live/" },
   { name: "Leon",   key: "leon",   url: "https://leon.ru/live/" },
+  { name: "Zenit",  key: "zenit",  url: "https://zenit.win/live/" },
 ];
 
 type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
@@ -49,9 +50,11 @@ function RuLivePage() {
   const importFb = useServerFn(importFonbet);
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
+  const importZn = useServerFn(importZenit);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
+  const [znBusy, setZnBusy] = useState(false);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
@@ -133,6 +136,19 @@ function RuLivePage() {
     }
   }, [lnBusy, importLn]);
 
+  const runZenit = useCallback(async () => {
+    if (znBusy) return;
+    setZnBusy(true);
+    try {
+      const res = await importZn({});
+      toast.success(`Zenit API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Zenit API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setZnBusy(false);
+    }
+  }, [znBusy, importZn]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
@@ -198,6 +214,10 @@ function RuLivePage() {
             <Button onClick={runLeon} disabled={lnBusy} size="lg" variant="secondary" title="Прямой API Leon">
               {lnBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Leon API
+            </Button>
+            <Button onClick={runZenit} disabled={znBusy} size="lg" variant="secondary" title="Прямой API Zenit">
+              {znBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Zenit API
             </Button>
           </div>
         </div>
