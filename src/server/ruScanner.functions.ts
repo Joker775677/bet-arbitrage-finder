@@ -133,7 +133,9 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
   const out: RawEvent[] = [];
   const rowRe = /^\|\s*\d+\s*\|\s*\[[\d:]+\]\([^)]+\)\s*\|\s*\[([^\]]+?)\]\((https?:\/\/[^)]+?)\)\s*\|(.*)$/;
   const oddRe = /\[(\d{1,2}\.\d{2})\]/g;
+  let currentDateKey: string | undefined;
   for (const line of md.split("\n")) {
+    currentDateKey = parseDateKey(line) ?? currentDateKey;
     const m = line.match(rowRe);
     if (!m) continue;
     const teamRaw = cleanParticipantName(m[1]);
@@ -156,7 +158,7 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
     if (odds.length < 3) continue;
     const a = odds.slice(0, 3) as [number, number, number];
     if (!a.every((x) => x > 1.01 && x < 100)) continue;
-    out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(line) });
+    out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(line) ?? currentDateKey });
   }
   return out;
 }
@@ -320,7 +322,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const arbs = findArbitrages(odds, data.stake, data.minRoi);
     const arbsDisplay: Arb[] = arbs.map((a) => ({
       ...a,
-      event_name: displayMap.get(a.event_name) ?? a.event_name,
+      event_name: displayMap.get(a.event_name) ?? displayKey(a.event_name),
     }));
 
     // === Top matched events (present in 2+ bookies) ===
