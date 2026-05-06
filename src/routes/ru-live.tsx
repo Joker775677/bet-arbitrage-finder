@@ -60,7 +60,7 @@ function RuLivePage() {
   const [states, setStates] = useState<SourceState[]>(
     ENGINE_LIST.map((s) => ({ source: { name: s.name, url: s.url }, status: "pending", events: 0 })),
   );
-  const [r, setR] = useState<DisplayResult | null>(null);
+  const [r, setR] = useState<ScanResult | null>(null);
 
   const run = useCallback(async () => {
     if (running) return;
