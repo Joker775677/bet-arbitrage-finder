@@ -44,7 +44,7 @@ async function fcScrape(url: string, waitFor = 2500): Promise<string> {
     });
     const j: any = await r.json();
     if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
-    return j.data?.markdown ?? "";
+    return j.data?.markdown ?? j.markdown ?? "";
   } finally {
     clearTimeout(t);
   }
@@ -112,7 +112,7 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
       console.log(`[ruScanner] fcExtractEvent failed for ${url}: ${JSON.stringify(j).slice(0, 200)}`);
       return null;
     }
-    return (j.data?.json ?? j.data?.extract ?? null) as ExtractedEventJSON | null;
+    return (j.data?.json ?? j.json ?? j.data?.extract ?? j.extract ?? null) as ExtractedEventJSON | null;
   } catch (e: any) {
     console.log(`[ruScanner] fcExtractEvent error for ${url}: ${e?.message}`);
     return null;
@@ -162,11 +162,21 @@ const ODDS_3 = /^(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})$/;
 const ODDS_2 = /^(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})$/;
 const LINK_EVENT = /^\[([^[\]]+?)\s+(?:[—–-])\s+([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
 const LINK_EVENT_2SP = /^\[([^[\]]+?)\s{2,}([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
+const LINK_EVENT_PIPE = /^\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
 
 function parseEventLine(line: string): { team1: string; team2: string; url: string } | null {
   let m = line.match(LINK_EVENT);
   if (!m) m = line.match(LINK_EVENT_2SP);
-  if (!m) return null;
+  if (!m) {
+    const pipe = line.match(LINK_EVENT_PIPE);
+    const parts = pipe?.[1]
+      ?.replace(/\\/g, "")
+      .split("|")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (pipe && parts && parts.length >= 2) return { team1: parts[0], team2: parts[parts.length - 1], url: pipe[2] };
+    return null;
+  }
   return { team1: m[1].trim(), team2: m[2].trim(), url: m[3] };
 }
 
@@ -517,7 +527,7 @@ function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
       if (!s) continue;
       if (/^!\[/.test(s)) continue;
       if (/^\d+$/.test(s) || /^\d+:\d+/.test(s)) continue;
-      if (/^(?:1Т|2Т|перерыв|тайм|live|перерыв)/i.test(s)) continue;
+      if (/^(?:1Т|2Т|перерыв|тайм|live|перерыв|не начался|матч)/i.test(s)) continue;
       if (/^#{1,4}/.test(s)) break;
       if (/^[A-Za-zА-Яа-яё][A-Za-zА-Яа-яё0-9 .'’\-]{1,40}$/.test(s)) {
         names.unshift(s);
@@ -534,6 +544,7 @@ function parseBetBoom(md: string, bookmaker: string): RawEvent[] {
       team1,
       team2,
       odds,
+      markets: legacyMarkets(odds),
       league: currentLeague,
     });
   }
@@ -551,10 +562,10 @@ function parseLeon(md: string, bookmaker: string): RawEvent[] {
     const block: string[] = [];
     for (let j = i; j < Math.min(i + 8, lines.length); j++) {
       block.push(lines[j]);
-      if (/\]\(https?:\/\/leon\.ru\/bets\//.test(lines[j])) break;
+      if (/\]\(https?:\/\/leon\.(?:ru|bet)\/(?:ru-ru\/)?(?:bets|live)\//.test(lines[j])) break;
     }
     const joined = block.join(" ");
-    const m = joined.match(/^\[(.+?)\]\((https?:\/\/leon\.ru\/bets\/[^)]+)\)/);
+    const m = joined.match(/^\[(.+?)\]\((https?:\/\/leon\.(?:ru|bet)\/(?:ru-ru\/)?(?:bets|live)\/[^)]+)\)/);
     if (!m) continue;
     const parts = m[1].replace(/\\/g, "\n").split("\n").map(cleanParticipantName).filter(Boolean);
     if (parts.length < 3) continue;
@@ -962,9 +973,9 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
       { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
-      { name: "Tennisi", url: "https://tennisi.bet/sport", parser: "tennisi" },
+      { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
       { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
-      { name: "Leon", url: "https://leon.ru/bets", parser: "leon" },
+      { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
       { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
       { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
@@ -975,7 +986,11 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
         try {
           if (s.parser === "winline-detail" || s.parser === "leon-detail") {
             const extracted = await fcExtractEvent(s.url);
-            const events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+            let events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+            if (!events.length) {
+              const md = await fcScrape(s.url, 2500);
+              events = s.parser === "winline-detail" ? parseWinlineDetail(md, s.name) : parseLeonDetail(md, s.name);
+            }
             console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets?.length ?? 0}`);
             bookieResults.push({ name: s.name, url: s.url, events });
             return;
@@ -1117,12 +1132,16 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
 
     return {
       arbs: arbsDisplay,
-      stats: bookieResults.map((br) => ({
-        bookmaker: br.name,
-        url: br.url,
-        events: br.events.length,
-        error: br.error,
-      })),
+      stats: Array.from(bookieResults.reduce((acc, br) => {
+        const prev = acc.get(br.name);
+        acc.set(br.name, {
+          bookmaker: br.name,
+          url: prev?.url ?? br.url,
+          events: (prev?.events ?? 0) + br.events.length,
+          error: prev?.error ?? br.error,
+        });
+        return acc;
+      }, new Map<string, { bookmaker: string; url: string; events: number; error?: string }>()).values()),
       totalOdds: odds.length,
       matchedEvents: new Set(odds.map((o) => o.event_name)).size,
       topMatches: matched.slice(0, 20),
