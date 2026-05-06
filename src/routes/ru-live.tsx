@@ -205,6 +205,10 @@ function RuLivePage() {
               {prBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Pari API
             </Button>
+            <Button onClick={runLeon} disabled={lnBusy} size="lg" variant="secondary" title="Прямой API Leon">
+              {lnBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Leon API
+            </Button>
           </div>
         </div>
       </Card>
