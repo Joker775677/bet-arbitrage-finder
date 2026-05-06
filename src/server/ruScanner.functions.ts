@@ -6,6 +6,7 @@ const FIRECRAWL = "https://api.firecrawl.dev/v2/scrape";
 interface RawEvent {
   bookmaker: string;
   url: string;
+  sport?: string;
   team1: string;
   team2: string;
   odds?: [number, number, number]; // legacy 1, X, 2 fallback
@@ -42,6 +43,7 @@ function clean(md: string): string[] {
 }
 
 const ODDS_3 = /^(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})$/;
+const ODDS_2 = /^(\d{1,2}\.\d{2})(\d{1,2}\.\d{2})$/;
 const LINK_EVENT = /^\[([^[\]]+?)\s+(?:[—–-])\s+([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
 const LINK_EVENT_2SP = /^\[([^[\]]+?)\s{2,}([^[\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
 
@@ -63,6 +65,21 @@ function parseOdds3(s: string): [number, number, number] | null {
   const all = s.match(/\d{1,2}\.\d{2}/g);
   if (all && all.length >= 3) {
     const a = all.slice(0, 3).map(Number) as [number, number, number];
+    if (a.every((x) => x > 1.01 && x < 100)) return a;
+  }
+  return null;
+}
+
+function parseOdds2(s: string): [number, number] | null {
+  const normalized = s.replace(/,/g, ".").replace(/\s+/g, "").trim();
+  const m = normalized.match(ODDS_2);
+  if (m) {
+    const a = [Number(m[1]), Number(m[2])] as [number, number];
+    if (a.every((x) => x > 1.01 && x < 100)) return a;
+  }
+  const all = s.replace(/,/g, ".").match(/\d{1,2}\.\d{2}/g);
+  if (all && all.length >= 2) {
+    const a = all.slice(0, 2).map(Number) as [number, number];
     if (a.every((x) => x > 1.01 && x < 100)) return a;
   }
   return null;
