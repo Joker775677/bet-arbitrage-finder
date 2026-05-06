@@ -1,12 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-interface FonbetOdd {
-  market: string;
-  outcome: string;
-  odds: number;
-}
-interface FonbetEvent {
+interface EngineOdd { market: string; outcome: string; odds: number }
+interface EngineEvent {
   eventId: number;
   sport: string | null;
   tournament: string | null;
@@ -15,7 +11,7 @@ interface FonbetEvent {
   eventName: string;
   startTime: string | null;
   live: boolean;
-  odds: FonbetOdd[];
+  odds: EngineOdd[];
 }
 
 function eventKey(team1: string, team2: string, dateKey: string, league: string) {
@@ -32,21 +28,25 @@ function dateKeyFromIso(iso: string | null): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/**
- * Импорт Fonbet через scraper-service (/fonbet endpoint).
- * Один запрос → ~3000 матчей с коэффами за <1 сек.
- */
-export const importFonbet = createServerFn({ method: "POST" }).handler(async () => {
+const ENGINE_META = {
+  fonbet: { path: "/fonbet?scope=1600", source: "fonbet", urlBase: "https://www.fon.bet/live/" },
+  pari:   { path: "/pari?scope=2300",   source: "pari",   urlBase: "https://pari.ru/live/" },
+} as const;
+
+type EngineKey = keyof typeof ENGINE_META;
+
+async function importEngine(engine: EngineKey) {
   const base = process.env.SCRAPER_URL;
   const token = process.env.SCRAPER_TOKEN;
   if (!base || !token) throw new Error("SCRAPER_URL/SCRAPER_TOKEN not configured");
+  const meta = ENGINE_META[engine];
 
   const t0 = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30000);
   let payload: any;
   try {
-    const r = await fetch(`${base.replace(/\/+$/, "")}/fonbet?scope=1600`, {
+    const r = await fetch(`${base.replace(/\/+$/, "")}${meta.path}`, {
       headers: { "x-token": token },
       signal: ctrl.signal,
     });
@@ -54,16 +54,12 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
   } finally {
     clearTimeout(timer);
   }
-  if (!payload?.ok) {
-    throw new Error(`fonbet scraper error: ${payload?.error || "unknown"}`);
-  }
-  const events: FonbetEvent[] = payload.events || [];
+  if (!payload?.ok) throw new Error(`${engine} scraper error: ${payload?.error || "unknown"}`);
+  const events: EngineEvent[] = payload.events || [];
   const fetchMs = Date.now() - t0;
 
   const now = new Date().toISOString();
-  const source = "fonbet";
 
-  // Build event rows
   const eventRowsAll = events
     .filter((e) => e.team1 && e.team2 && e.odds?.length)
     .map((e) => {
@@ -72,7 +68,7 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
       return {
         ev: e,
         row: {
-          source,
+          source: meta.source,
           sport: e.sport,
           league,
           team1: e.team1,
@@ -80,13 +76,12 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
           event_name: e.eventName,
           event_key: eventKey(e.team1, e.team2, dk, league),
           date_key: dk,
-          url: `https://www.fon.bet/live/${e.eventId}`,
+          url: `${meta.urlBase}${e.eventId}`,
           scanned_at: now,
         },
       };
     });
 
-  // dedupe by event_key
   const seen = new Set<string>();
   const eventRows = eventRowsAll.filter(({ row }) => {
     if (seen.has(row.event_key)) return false;
@@ -94,7 +89,6 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
     return true;
   });
 
-  // Batch upsert events (Supabase limit ~1000/req → chunk by 500)
   const idMap = new Map<string, string>();
   const CHUNK = 500;
   for (let i = 0; i < eventRows.length; i += CHUNK) {
@@ -107,24 +101,16 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
     for (const r of upserted ?? []) idMap.set(r.event_key as string, r.id as string);
   }
 
-  // Build odds rows
   const oddsAll: any[] = [];
   for (const { ev, row } of eventRows) {
     const id = idMap.get(row.event_key);
     if (!id) continue;
     for (const o of ev.odds) {
       if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
-      oddsAll.push({
-        event_id: id,
-        market: o.market,
-        outcome: o.outcome,
-        odds: o.odds,
-        scanned_at: now,
-      });
+      oddsAll.push({ event_id: id, market: o.market, outcome: o.outcome, odds: o.odds, scanned_at: now });
     }
   }
 
-  // dedupe by (event_id, market, outcome)
   const odSeen = new Set<string>();
   const oddRows = oddsAll.filter((r) => {
     const k = `${r.event_id}|${r.market}|${r.outcome}`;
@@ -143,11 +129,11 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
     savedOdds += count ?? slice.length;
   }
 
-  // Cleanup
   try { await supabaseAdmin.rpc("cleanup_old_ru_data"); } catch {}
 
   return {
     ok: true,
+    bookmaker: meta.source,
     fetchMs,
     totalMs: Date.now() - t0,
     eventsReceived: events.length,
@@ -155,4 +141,7 @@ export const importFonbet = createServerFn({ method: "POST" }).handler(async () 
     oddsSaved: savedOdds,
     at: now,
   };
-});
+}
+
+export const importFonbet = createServerFn({ method: "POST" }).handler(() => importEngine("fonbet"));
+export const importPari   = createServerFn({ method: "POST" }).handler(() => importEngine("pari"));

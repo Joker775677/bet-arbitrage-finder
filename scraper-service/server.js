@@ -133,19 +133,28 @@ function pickProxyUrl() {
     : `http://${host}:${port}`;
 }
 
-async function fetchFonbetSnapshot(scopeMarket = 1600) {
+// Конфигурация ресурсных хостов на разных Fonbet-движках (Pari использует тот же engine)
+const ENGINE_CONFIG = {
+  fonbet: { host: "line52w.bk6bba-resources.com", referer: "https://www.fon.bet/", defaultScope: 1600 },
+  pari:   { host: "line-lb01-w.pb06e2-resources.com", referer: "https://pari.ru/",   defaultScope: 2300 },
+};
+
+async function fetchEngineSnapshot(engine, scopeMarket) {
+  const cfg = ENGINE_CONFIG[engine];
+  if (!cfg) throw new Error(`unknown engine ${engine}`);
   const proxyUrl = pickProxyUrl();
   const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-  const url = `https://line52w.bk6bba-resources.com/events/list?lang=ru&scopeMarket=${scopeMarket}`;
+  const url = `https://${cfg.host}/events/list?lang=ru&scopeMarket=${scopeMarket || cfg.defaultScope}`;
   const res = await undiciFetch(url, {
     dispatcher,
     headers: {
       "Accept": "application/json",
       "Accept-Encoding": "gzip, deflate",
+      "Referer": cfg.referer,
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
     },
   });
-  if (!res.ok) throw new Error(`fonbet ${scopeMarket} status ${res.status}`);
+  if (!res.ok) throw new Error(`${engine} ${scopeMarket} status ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   // undici обычно сам распаковывает, но на всякий случай:
   let text;
@@ -157,7 +166,7 @@ async function fetchFonbetSnapshot(scopeMarket = 1600) {
   return JSON.parse(text);
 }
 
-function normalizeFonbet(data) {
+function normalizeEngine(data) {
   const sportsById = new Map((data.sports || []).map(s => [s.id, s]));
   // Поднимаемся по parentIds от segment до root sport (kind === 'sport')
   function rootSport(sportId) {
@@ -218,27 +227,33 @@ function normalizeFonbet(data) {
   return out;
 }
 
-app.get("/fonbet", async (req, res) => {
-  if (TOKEN && req.headers["x-token"] !== TOKEN) {
-    return res.status(401).json({ error: "unauthorized" });
-  }
-  const scope = parseInt(req.query.scope, 10) || 1600; // 1600=live, 1500=prematch
-  const t0 = Date.now();
-  try {
-    const snap = await fetchFonbetSnapshot(scope);
-    const events = normalizeFonbet(snap);
-    return res.json({
-      ok: true,
-      bookmaker: "fonbet",
-      scope,
-      eventsCount: events.length,
-      ms: Date.now() - t0,
-      events,
-    });
-  } catch (e) {
-    return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
-  }
-});
+// Универсальный handler для всех движков на Fonbet-платформе
+function makeEngineHandler(engine) {
+  return async (req, res) => {
+    if (TOKEN && req.headers["x-token"] !== TOKEN) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    const scope = parseInt(req.query.scope, 10) || ENGINE_CONFIG[engine].defaultScope;
+    const t0 = Date.now();
+    try {
+      const snap = await fetchEngineSnapshot(engine, scope);
+      const events = normalizeEngine(snap);
+      return res.json({
+        ok: true,
+        bookmaker: engine,
+        scope,
+        eventsCount: events.length,
+        ms: Date.now() - t0,
+        events,
+      });
+    } catch (e) {
+      return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
+    }
+  };
+}
+
+app.get("/fonbet", makeEngineHandler("fonbet"));
+app.get("/pari",   makeEngineHandler("pari"));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}, proxies=${PROXIES.length}`));
 

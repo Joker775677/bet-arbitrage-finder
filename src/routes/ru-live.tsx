@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 import { persistRuScan } from "@/server/ruPersist.functions";
-import { importFonbet } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari } from "@/server/fonbetImport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap } from "lucide-react";
 
@@ -45,7 +45,9 @@ function RuLivePage() {
   const finalize = useServerFn(finalizeRuScan);
   const persist = useServerFn(persistRuScan);
   const importFb = useServerFn(importFonbet);
+  const importPr = useServerFn(importPari);
   const [fbBusy, setFbBusy] = useState(false);
+  const [prBusy, setPrBusy] = useState(false);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
@@ -105,15 +107,26 @@ function RuLivePage() {
     setFbBusy(true);
     try {
       const res = await importFb({});
-      toast.success(
-        `Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`,
-      );
+      toast.success(`Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
     } catch (e: any) {
       toast.error(`Fonbet API: ${e?.message ?? "ошибка"}`);
     } finally {
       setFbBusy(false);
     }
   }, [fbBusy, importFb]);
+
+  const runPari = useCallback(async () => {
+    if (prBusy) return;
+    setPrBusy(true);
+    try {
+      const res = await importPr({});
+      toast.success(`Pari API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Pari API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setPrBusy(false);
+    }
+  }, [prBusy, importPr]);
 
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
@@ -173,9 +186,13 @@ function RuLivePage() {
               {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
               {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
             </Button>
-            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet — ~3000 матчей за 1 сек">
+            <Button onClick={runFonbet} disabled={fbBusy} size="lg" variant="secondary" title="Прямой API Fonbet">
               {fbBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Fonbet API
+            </Button>
+            <Button onClick={runPari} disabled={prBusy} size="lg" variant="secondary" title="Прямой API Pari — ~8000 матчей">
+              {prBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Pari API
             </Button>
           </div>
         </div>
