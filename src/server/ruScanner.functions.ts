@@ -44,7 +44,7 @@ async function fcScrape(url: string, waitFor = 2500): Promise<string> {
     });
     const j: any = await r.json();
     if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
-    return j.data?.markdown ?? "";
+    return j.data?.markdown ?? j.markdown ?? "";
   } finally {
     clearTimeout(t);
   }
@@ -112,7 +112,7 @@ async function fcExtractEvent(url: string): Promise<ExtractedEventJSON | null> {
       console.log(`[ruScanner] fcExtractEvent failed for ${url}: ${JSON.stringify(j).slice(0, 200)}`);
       return null;
     }
-    return (j.data?.json ?? j.data?.extract ?? null) as ExtractedEventJSON | null;
+    return (j.data?.json ?? j.json ?? j.data?.extract ?? j.extract ?? null) as ExtractedEventJSON | null;
   } catch (e: any) {
     console.log(`[ruScanner] fcExtractEvent error for ${url}: ${e?.message}`);
     return null;
