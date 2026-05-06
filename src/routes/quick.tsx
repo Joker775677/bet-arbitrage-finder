@@ -126,6 +126,43 @@ function QuickPage() {
     setOdds1({});
     setOdds2({});
     setEvent("");
+    setPaste("");
+  }
+
+  const [paste, setPaste] = useState("");
+
+  function applyPaste() {
+    const blocks = parsePaste(paste);
+    if (!blocks.length) {
+      toast.error("Не удалось распознать коэффициенты");
+      return;
+    }
+    // Map blocks to slots: prefer bookie name match to bm1/bm2; else fill in order.
+    const slots: { setBm: (s: string) => void; setOdds: (o: Record<string, string>) => void; cur: string }[] = [
+      { setBm: setBm1, setOdds: setOdds1, cur: bm1 },
+      { setBm: setBm2, setOdds: setOdds2, cur: bm2 },
+    ];
+    const used = [false, false];
+    // First pass: bookie-name matches
+    for (const b of blocks) {
+      if (!b.bookie) continue;
+      const idx = slots.findIndex((s, i) => !used[i] && s.cur.toLowerCase() === b.bookie!.toLowerCase());
+      if (idx !== -1) {
+        slots[idx].setOdds(b.odds);
+        used[idx] = true;
+      }
+    }
+    // Second pass: remaining blocks → first free slot, set bookie if known
+    for (const b of blocks) {
+      const idx = used.indexOf(false);
+      if (idx === -1) break;
+      // Skip blocks already consumed by name
+      if (b.bookie && slots.some((s, i) => used[i] && s.cur.toLowerCase() === b.bookie!.toLowerCase())) continue;
+      if (b.bookie) slots[idx].setBm(b.bookie);
+      slots[idx].setOdds(b.odds);
+      used[idx] = true;
+    }
+    toast.success(`Распознано блоков: ${blocks.length}`);
   }
 
   return (
