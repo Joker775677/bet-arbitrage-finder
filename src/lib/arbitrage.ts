@@ -41,11 +41,21 @@ export interface Arb {
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+const DRAW_SPORT_RE = /(футбол|soccer|football|мини-футбол|futsal|водное поло|water polo|шахмат|chess)/i;
+const TWO_WAY_SPORT_RE = /(теннис|tennis|настольный теннис|table tennis|баскетбол|basket|волейбол|volley|бейсбол|baseball|mlb|afl|регби|rugby|mma|ufc|бокс|boxing|крикет|cricket|бадминтон|badminton|хоккей|hockey|nhl|хоккейбол)/i;
+
 // Сколько исходов должно быть в рынке, чтобы он считался "полным".
-// Для тоталов/фор это всегда пара (Over/Under, 1/2), 1X2 = три, DC = три (1X, 12, X2), BTTS = 2.
-function expectedOutcomes(market: string): number {
+// Важно: некоторые БК отдают двухисходные рынки победителя как "1X2".
+// Для футбола/шахмат без X такой рынок неполный, а для no-draw спортов 1/2 — валидная пара.
+function expectedOutcomes(market: string, rows: OddRow[]): number {
   const m = market.toUpperCase();
-  if (m === "1X2") return 3;
+  const outcomes = new Set(rows.map((r) => norm(r.outcome)));
+  const sportText = rows.map((r) => r.sport).join(" ");
+  if (m === "1X2") {
+    if (outcomes.has("x")) return 3;
+    if (outcomes.has("1") && outcomes.has("2") && TWO_WAY_SPORT_RE.test(sportText) && !DRAW_SPORT_RE.test(sportText)) return 2;
+    return 3;
+  }
   if (m === "DC") return 3;
   if (m === "BTTS") return 2;
   if (m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL") || m.startsWith("HANDICAP") || m === "OU") return 2;
@@ -91,7 +101,7 @@ export function findArbitrages(
     }
 
     // Должны быть ВСЕ исходы рынка — иначе это не вилка, а кривой набор.
-    const need = expectedOutcomes(rows[0].market);
+    const need = expectedOutcomes(rows[0].market, rows);
     if (bestByOutcome.size !== need) continue;
 
     // Need legs from at least 2 different bookmakers (otherwise not a real arb)
