@@ -262,6 +262,7 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
     // skip props like "(Угловые)", "(ЖК)", "(xG...)"
     if (/\(/.test(team1) || /\(/.test(team2)) continue;
     if (/^Гибкий экспресс/i.test(team1)) continue;
+    const cells = line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
     const rest = m[3];
     const odds: number[] = [];
     let mm: RegExpExecArray | null;
@@ -270,7 +271,24 @@ function parseTennisi(md: string, bookmaker: string): RawEvent[] {
     if (odds.length < 3) continue;
     const a = odds.slice(0, 3) as [number, number, number];
     if (!a.every((x) => x > 1.01 && x < 100)) continue;
-    out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(line) ?? currentDateKey });
+    const markets = legacyMarkets(a);
+    addMarket(markets, "Двойной шанс", [
+      { outcome: "1X", odds: oddFromText(cells[7] ?? "") },
+      { outcome: "12", odds: oddFromText(cells[8] ?? "") },
+      { outcome: "X2", odds: oddFromText(cells[9] ?? "") },
+    ]);
+    const h1 = numberFromText(cells[11] ?? "");
+    const h2 = numberFromText(cells[13] ?? "");
+    if (h1 !== undefined && h2 !== undefined) addMarket(markets, `Фора ${fmtLine(Math.abs(h1))}`, [
+      { outcome: `Ф1 ${fmtLine(h1)}`, odds: oddFromText(cells[12] ?? "") },
+      { outcome: `Ф2 ${fmtLine(h2)}`, odds: oddFromText(cells[14] ?? "") },
+    ]);
+    const total = numberFromText(cells[17] ?? "");
+    if (total !== undefined) addMarket(markets, `Тотал ${fmtLine(total)}`, [
+      { outcome: "М", odds: oddFromText(cells[16] ?? "") },
+      { outcome: "Б", odds: oddFromText(cells[18] ?? "") },
+    ]);
+    out.push({ bookmaker, url, team1, team2, odds: a, markets, dateKey: parseDateKey(line) ?? currentDateKey });
   }
   return out;
 }
@@ -302,7 +320,26 @@ function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
       if (oddsMatches && oddsMatches.length >= 3 && lines[j].includes("|")) {
         const a = oddsMatches.slice(0, 3).map(Number) as [number, number, number];
         if (a.every((x) => x > 1.01 && x < 100)) {
-          out.push({ bookmaker, url, team1, team2, odds: a, dateKey: parseDateKey(lines[i]) });
+          const cells = lines[j].trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+          const markets = legacyMarkets(a);
+          addMarket(markets, "Двойной шанс", [
+            { outcome: "1X", odds: oddFromText(cells[5] ?? "") },
+            { outcome: "12", odds: oddFromText(cells[6] ?? "") },
+            { outcome: "X2", odds: oddFromText(cells[7] ?? "") },
+          ]);
+          const h1 = parseParenOddCell(cells[8] ?? "");
+          const h2 = parseParenOddCell(cells[9] ?? "");
+          if (h1.line !== undefined && h2.line !== undefined) addMarket(markets, `Фора ${fmtLine(Math.abs(h1.line))}`, [
+            { outcome: `Ф1 ${fmtLine(h1.line)}`, odds: h1.odd },
+            { outcome: `Ф2 ${fmtLine(h2.line)}`, odds: h2.odd },
+          ]);
+          const tm = parseParenOddCell(cells[10] ?? "");
+          const tb = parseParenOddCell(cells[11] ?? "");
+          if (tm.line !== undefined) addMarket(markets, `Тотал ${fmtLine(tm.line)}`, [
+            { outcome: "М", odds: tm.odd },
+            { outcome: "Б", odds: tb.odd },
+          ]);
+          out.push({ bookmaker, url, team1, team2, odds: a, markets, dateKey: parseDateKey(lines[i]) });
           break;
         }
       }
