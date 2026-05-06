@@ -258,7 +258,8 @@ function RuLivePage() {
           <>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
               <span>Всего коэф.: <span className="font-mono text-foreground">{r.totalOdds}</span></span>
-              <span>Уникальных событий: <span className="font-mono text-foreground">{r.matchedEvents}</span></span>
+              <span>Уникальных событий: <span className="font-mono text-foreground">{r.uniqueEvents}</span></span>
+              <span>Совпало в ≥2 БК: <span className="font-mono text-foreground">{r.matchedEvents}</span> (live: {r.matchedLive} · prematch: {r.matchedPrematch})</span>
               {r.scannedAt && (
                 <span>Снимок от: <span className="font-mono text-foreground">{new Date(r.scannedAt).toLocaleTimeString("ru")}</span></span>
               )}
