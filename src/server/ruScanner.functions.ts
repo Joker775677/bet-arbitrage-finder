@@ -359,8 +359,22 @@ function numberFromText(text: string): number | undefined {
 function oddFromText(text: string): number | undefined {
   const all = text.replace(/,/g, ".").match(/\d{1,3}(?:\.\d{1,3})?/g);
   if (!all?.length) return undefined;
-  const n = Number(all[all.length - 1]);
+  const candidates = all.map(Number).filter(validOdd);
+  if (!candidates.length) return undefined;
+  const n = candidates[candidates.length - 1];
   return validOdd(n) ? n : undefined;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => { t = setTimeout(() => resolve(null), ms); }),
+    ]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
 }
 
 function addMarket(markets: RawMarket[], market: string, selections: { outcome: string; odds?: number }[]) {
