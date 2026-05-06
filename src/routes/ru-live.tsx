@@ -150,11 +150,7 @@ function RuLivePage() {
     return () => { void supabase.removeChannel(ch); };
   }, [loadDbEvents]);
 
-  useEffect(() => {
-    // первый автозапуск
-    if (!r && !running) void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // автозапуск отключён — пока пилим выгрузку через API (Fonbet/Pari)
 
   const doneCount = states.filter((s) => s.status === "done" || s.status === "error").length;
   const totalCount = states.length;
