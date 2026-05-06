@@ -605,20 +605,20 @@ function eventLeague(ev: RawEvent): string {
   return fromLeague ?? leagueFromText(ev.url) ?? leagueSlugFromUrl(ev.url) ?? (ev.league ? translit(ev.league.toLowerCase()).replace(/[^a-z0-9]/g, "-").slice(0, 30) : "any");
 }
 
-function canonicalEvent(team1: string, team2: string, league: string): { key: string; flip: boolean; display: string } {
+function canonicalEvent(team1: string, team2: string, league: string, dateKey?: string): { key: string; flip: boolean; display: string } {
   const a = teamSig(team1);
   const b = teamSig(team2);
   const flip = a > b;
   const pair = flip ? `${b}|${a}` : `${a}|${b}`;
   return {
-    key: `${league}|${pair}`,
+    key: `${league}|${dateKey ?? "date-any"}|${pair}`,
     flip,
     display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
   };
 }
 
 function displayKey(key: string): string {
-  return key.split("|").slice(1).join(" — ");
+  return key.split("|").slice(2).join(" — ");
 }
 
 function orientMarkets(markets: RawMarket[], flip: boolean): RawMarket[] {
@@ -641,25 +641,29 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" }[] = [
+    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" }[] = [
       { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
       { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "fonbet" },
       { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
       { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
       { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "betboom" },
+      { name: "Leon", url: "https://leon.ru/", parser: "leon" },
+      { name: "Zenit", url: "https://zenit.win/", parser: "zenit" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url, s.parser === "betboom" ? 12000 : 6000);
+          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" ? 12000 : 6000);
           const events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
-                  : s.parser === "fonbet" ? parseFonbet(md, s.name)
-                    : parseGenericLine(clean(md), s.name);
+                  : s.parser === "leon" ? parseLeon(md, s.name)
+                    : s.parser === "zenit" ? parseZenit(md, s.name)
+                      : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                        : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
