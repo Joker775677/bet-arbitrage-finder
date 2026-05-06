@@ -74,6 +74,41 @@ function parseGenericLine(lines: string[], bookmaker: string): RawEvent[] {
   return out;
 }
 
+// Marathonbet markdown stores events as table rows like:
+//   | Суперприз<br>**1.**<br>[Team1](url)<br>...<br>**2.**<br>[Team2](url)<br>... |
+//   | --- |
+//   |  |
+//   | +N | | 1.63 | 5.35 | 4.45 | 1.26 | 1.195 | 2.44 | ...
+function parseMarathonbet(md: string, bookmaker: string): RawEvent[] {
+  const out: RawEvent[] = [];
+  // Strip image markdown so it doesn't pollute
+  const cleaned = md
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/[A-Za-z0-9+/=]{200,}/g, "");
+  const lines = cleaned.split("\n");
+  const rowRe =
+    /\*\*1\.\*\*<br>\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)[\s\S]*?\*\*2\.\*\*<br>\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(rowRe);
+    if (!m) continue;
+    const team1 = m[1].trim();
+    const team2 = m[3].trim();
+    const url = m[2];
+    // Look for odds row in next ~6 lines, with leading "| +<digits> |" or just three odds
+    for (let j = i + 1; j < Math.min(i + 7, lines.length); j++) {
+      const oddsMatches = lines[j].match(/\b\d{1,2}\.\d{2,3}\b/g);
+      if (oddsMatches && oddsMatches.length >= 3 && lines[j].includes("|")) {
+        const a = oddsMatches.slice(0, 3).map(Number) as [number, number, number];
+        if (a.every((x) => x > 1.01 && x < 100)) {
+          out.push({ bookmaker, url, team1, team2, odds: a });
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // === Team name normalization ===
 // Map common EN ↔ RU spellings to a canonical form
 const SYNONYMS: Record<string, string> = {
@@ -126,9 +161,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources = [
-      { name: "Winline", url: "https://winline.ru/stavki/futbol/" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports/football" },
+    const sources: { name: string; url: string; parser: "generic" | "marathon" }[] = [
+      { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
+      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "generic" },
+      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
@@ -136,8 +172,10 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
       sources.map(async (s) => {
         try {
           const md = await fcScrape(s.url);
-          const lines = clean(md);
-          const events = parseGenericLine(lines, s.name);
+          const events =
+            s.parser === "marathon"
+              ? parseMarathonbet(md, s.name)
+              : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
