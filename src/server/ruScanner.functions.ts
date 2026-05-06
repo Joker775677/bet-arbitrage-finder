@@ -10,6 +10,7 @@ interface RawEvent {
   team2: string;
   odds: [number, number, number]; // 1, X, 2
   dateKey?: string; // dd.mm; used to avoid mixing different matches with same teams
+  league?: string;  // canonical league code, derived from URL or context
 }
 
 async function fcScrape(url: string, waitFor = 6000): Promise<string> {
@@ -267,27 +268,78 @@ function teamTokens(name: string): string[] {
 }
 
 // Signature = ALL significant tokens, sorted and joined.
-// Strict matching: two team names match only if their full token sets are identical.
 function teamSig(name: string): string {
   const t = teamTokens(name);
   if (!t.length) return translit(name).replace(/\s+/g, "");
   return [...new Set(t)].sort().join("_");
 }
 
-function canonicalEvent(team1: string, team2: string, _dateKey?: string): { key: string; flip: boolean; display: string } {
+// Map of league keywords (found in event URL or title) → canonical league code.
+// Anything matching the same code from different bookmakers will be grouped together.
+const LEAGUE_PATTERNS: { code: string; re: RegExp }[] = [
+  { code: "epl",          re: /(premier-?league|angliya|english-premier|anglijskaya|англ.+премьер|апл)/i },
+  { code: "laliga",       re: /(la-?liga|laliga|ispaniya|ispanskaya|испан.+ла-?лига|примера)/i },
+  { code: "seriea",       re: /(serie-?a|italiya|italyanskaya|итал.+серия)/i },
+  { code: "bundesliga",   re: /(bundesliga|germaniya|nemetskaya|бундеслига|герман)/i },
+  { code: "ligue1",       re: /(ligue-?1|francz|frantsuz|франц.+лига-?1|лига-?1)/i },
+  { code: "rpl",          re: /(rpl|russia.*premier|rossiya.*premier|rossijskaya.*premier|росс.+премьер|мир-?рпл|премьер-?лига-?россии)/i },
+  { code: "fnl",          re: /(fnl|first-?league|pervaya-?liga|перв.+лига|фнл)/i },
+  { code: "ucl",          re: /(champions-?league|liga-?chempionov|чемпион.+лига|uefa-?cl|лч)/i },
+  { code: "uel",          re: /(europa-?league|liga-?evrop|лига-?европ|uel)/i },
+  { code: "uecl",         re: /(conference-?league|liga-?konferentsi|лига-?конференц|uecl)/i },
+  { code: "mls",          re: /\bmls\b|major-?league-?soccer/i },
+  { code: "brazil-a",     re: /(brasileir|seria-?a-?braziliya|бразил.+серия-?а|brazil-?serie)/i },
+  { code: "argentina",    re: /(argentin|primera-?division-?argentin|аргент)/i },
+  { code: "uruguay",      re: /(uruguay|urugvaj|урugв|уругв)/i },
+  { code: "world-cup",    re: /(world-?cup|chempionat-?mira|чм-?20\d\d|чемпионат-?мира)/i },
+  { code: "euro",         re: /(euro-?20\d\d|chempionat-?evrop|чемпионат-?европы)/i },
+];
+
+function leagueFromText(...parts: (string | undefined)[]): string | undefined {
+  const blob = parts.filter(Boolean).join(" ");
+  for (const { code, re } of LEAGUE_PATTERNS) {
+    if (re.test(blob)) return code;
+  }
+  return undefined;
+}
+
+// Fallback: extract a country/league slug from the URL path so different
+// bookmakers can still group together when no known pattern matches.
+function leagueSlugFromUrl(url: string): string | undefined {
+  try {
+    const u = new URL(url);
+    const segs = u.pathname.split("/").filter(Boolean);
+    // common shapes: /sport/football/<country>/<league>/<event>
+    //                /stavki/futbol/<country>/<league>/<event>
+    const footballIdx = segs.findIndex((s) => /^(football|futbol|soccer|sports?)$/i.test(s));
+    const start = footballIdx >= 0 ? footballIdx + 1 : 0;
+    const slugs = segs.slice(start, start + 2).filter((s) => /[a-zа-яё-]{3,}/i.test(s) && !/^\d+$/.test(s));
+    if (!slugs.length) return undefined;
+    return translit(slugs.join("-").toLowerCase()).replace(/[^a-z0-9-]/g, "").slice(0, 40) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function eventLeague(ev: RawEvent): string {
+  if (ev.league) return ev.league;
+  return leagueFromText(ev.url) ?? leagueSlugFromUrl(ev.url) ?? "any";
+}
+
+function canonicalEvent(team1: string, team2: string, league: string): { key: string; flip: boolean; display: string } {
   const a = teamSig(team1);
   const b = teamSig(team2);
   const flip = a > b;
   const pair = flip ? `${b}|${a}` : `${a}|${b}`;
   return {
-    key: pair,
+    key: `${league}|${pair}`,
     flip,
     display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
   };
 }
 
 function displayKey(key: string): string {
-  return key.replace(/\|/g, " — ");
+  return key.split("|").slice(1).join(" — ");
 }
 
 export const scanRussianBookies = createServerFn({ method: "POST" })
@@ -326,7 +378,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const odds: OddRow[] = [];
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
         const outcomes: [string, number][] = canonical.flip
           ? [["1", ev.odds[2]], ["X", ev.odds[1]], ["2", ev.odds[0]]]
           : [["1", ev.odds[0]], ["X", ev.odds[1]], ["2", ev.odds[2]]];
@@ -352,7 +404,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
         const isCyr = /[а-яё]/i.test(ev.team1);
         if (!displayMap.has(canonical.key) || isCyr) {
           displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
@@ -373,7 +425,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = canonicalEvent(ev.team1, ev.team2, ev.dateKey).key;
+        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev)).key;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
