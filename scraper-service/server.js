@@ -255,5 +255,133 @@ function makeEngineHandler(engine) {
 app.get("/fonbet", makeEngineHandler("fonbet"));
 app.get("/pari",   makeEngineHandler("pari"));
 
+// ============== Leon direct JSON API ==============
+const LEON_FLAGS = "reg,urlv2,orn2,mm2,rrc,nodup,cmg";
+const LEON_URLS = [
+  `https://leon.ru/api-2/betline/events/inplayupcoming?ctag=ru-RU&hideClosed=true&flags=${LEON_FLAGS}`,
+  `https://leon.ru/api-2/betline/events/prematch?ctag=ru-RU&to=120&hideClosed=true&flags=${LEON_FLAGS}`,
+];
+
+async function fetchLeonSnapshots() {
+  const proxyUrl = pickProxyUrl();
+  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+  const out = [];
+  for (const url of LEON_URLS) {
+    try {
+      const res = await undiciFetch(url, {
+        dispatcher,
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "ru-RU,ru;q=0.9",
+          Referer: "https://leon.ru/",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+        },
+      });
+      if (!res.ok) { console.log(`[leon] ${url.split("?")[0]} status ${res.status}`); continue; }
+      out.push(await res.json());
+    } catch (e) {
+      console.log(`[leon] fetch error: ${e?.message}`);
+    }
+  }
+  return out;
+}
+
+function mapLeonRunner(marketName, runnerName) {
+  const m = (marketName || "").toLowerCase();
+  const r = (runnerName || "").toLowerCase().trim();
+  // 1X2
+  if (m.includes("исход") || m.includes("победитель") || m === "1x2" || m.includes("основной")) {
+    if (r === "1" || r === "w1" || r === "п1" || r.includes("победа 1")) return { market: "1X2", outcome: "1" };
+    if (r === "2" || r === "w2" || r === "п2" || r.includes("победа 2")) return { market: "1X2", outcome: "2" };
+    if (r === "x" || r === "х" || r === "ничья" || r === "draw") return { market: "1X2", outcome: "X" };
+  }
+  // Двойной шанс
+  if (m.includes("двойной") || m.includes("double chance")) {
+    if (r.includes("1x") || r.includes("1х") || r.includes("1 или x") || r.includes("1 или х")) return { market: "DC", outcome: "1X" };
+    if (r === "12" || r.includes("1 или 2") || r.includes("без ничьи")) return { market: "DC", outcome: "12" };
+    if (r.includes("x2") || r.includes("х2") || r.includes("x или 2") || r.includes("х или 2")) return { market: "DC", outcome: "X2" };
+  }
+  // Обе забьют
+  if (m.includes("обе") && m.includes("заб")) {
+    if (r === "да" || r === "yes" || r.includes("да")) return { market: "BTTS", outcome: "YES" };
+    if (r === "нет" || r === "no" || r.includes("нет")) return { market: "BTTS", outcome: "NO" };
+  }
+  // Тотал (общий, не индивидуальный)
+  if (m.includes("тотал") && !m.includes("инд") && !m.includes("команд")) {
+    const num = (runnerName.match(/[+-]?\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", ".");
+    if (!num) return null;
+    if (r.includes("боль") || r.startsWith("over") || r.startsWith("б ") || r.startsWith("б(")) return { market: "TOTAL", outcome: `OVER ${num}` };
+    if (r.includes("мень") || r.startsWith("under") || r.startsWith("м ") || r.startsWith("м(")) return { market: "TOTAL", outcome: `UNDER ${num}` };
+  }
+  // Фора
+  if (m.includes("фора") || m.includes("гандикап") || m.includes("handicap")) {
+    const num = (runnerName.match(/[+-]?\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", ".");
+    if (!num) return null;
+    if (/(^|[^\d])(1|ф1|фора 1|команда 1|home)/i.test(r)) return { market: "HANDICAP", outcome: `1 ${num}` };
+    if (/(^|[^\d])(2|ф2|фора 2|команда 2|away)/i.test(r)) return { market: "HANDICAP", outcome: `2 ${num}` };
+  }
+  return null;
+}
+
+function normalizeLeon(snapshots) {
+  const out = [];
+  const byId = new Map();
+  for (const data of snapshots) {
+    // Leon: {sports: [{id, name, regions: [{leagues: [{events:[...]}]}]}]}
+    for (const sport of data.sports || []) {
+      for (const region of sport.regions || []) {
+        for (const league of region.leagues || []) {
+          for (const ev of league.events || []) {
+            if (byId.has(ev.id)) continue;
+            const comps = ev.competitors || [];
+            const home = comps.find((c) => c.homeAway === "HOME") || comps[0];
+            const away = comps.find((c) => c.homeAway === "AWAY") || comps[1];
+            if (!home?.name || !away?.name) continue;
+            const odds = [];
+            for (const market of ev.markets || []) {
+              for (const r of market.runners || []) {
+                const price = typeof r.priceDec === "number" ? r.priceDec
+                  : typeof r.price === "number" ? r.price
+                  : Number(r.priceStr);
+                if (!Number.isFinite(price) || price < 1.01) continue;
+                const mapped = mapLeonRunner(market.name, r.name);
+                if (!mapped) continue;
+                odds.push({ market: mapped.market, outcome: mapped.outcome, odds: price });
+              }
+            }
+            if (!odds.length) continue;
+            byId.set(ev.id, true);
+            out.push({
+              eventId: ev.id,
+              sport: sport.name || null,
+              tournament: [region.name, league.name].filter(Boolean).join(". ") || null,
+              team1: home.name,
+              team2: away.name,
+              eventName: `${home.name} — ${away.name}`,
+              startTime: ev.kickoff ? new Date(ev.kickoff).toISOString() : null,
+              live: !!ev.open,
+              odds,
+            });
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+app.get("/leon", async (req, res) => {
+  if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
+  const t0 = Date.now();
+  try {
+    const snaps = await fetchLeonSnapshots();
+    if (!snaps.length) throw new Error("no snapshots fetched");
+    const events = normalizeLeon(snaps);
+    return res.json({ ok: true, bookmaker: "leon", eventsCount: events.length, ms: Date.now() - t0, events });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
+  }
+});
+
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}, proxies=${PROXIES.length}`));
 

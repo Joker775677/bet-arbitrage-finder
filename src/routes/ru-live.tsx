@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 import { persistRuScan } from "@/server/ruPersist.functions";
-import { importFonbet, importPari } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari, importLeon } from "@/server/fonbetImport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap } from "lucide-react";
 
@@ -46,8 +46,10 @@ function RuLivePage() {
   const persist = useServerFn(persistRuScan);
   const importFb = useServerFn(importFonbet);
   const importPr = useServerFn(importPari);
+  const importLn = useServerFn(importLeon);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
+  const [lnBusy, setLnBusy] = useState(false);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
@@ -128,6 +130,19 @@ function RuLivePage() {
     }
   }, [prBusy, importPr]);
 
+  const runLeon = useCallback(async () => {
+    if (lnBusy) return;
+    setLnBusy(true);
+    try {
+      const res = await importLn({});
+      toast.success(`Leon API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Leon API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setLnBusy(false);
+    }
+  }, [lnBusy, importLn]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
@@ -189,6 +204,10 @@ function RuLivePage() {
             <Button onClick={runPari} disabled={prBusy} size="lg" variant="secondary" title="Прямой API Pari — ~8000 матчей">
               {prBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Pari API
+            </Button>
+            <Button onClick={runLeon} disabled={lnBusy} size="lg" variant="secondary" title="Прямой API Leon">
+              {lnBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Leon API
             </Button>
           </div>
         </div>
