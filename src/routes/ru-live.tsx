@@ -100,6 +100,21 @@ function RuLivePage() {
     }
   }, [running, scanOne, finalize, persist, stake, minRoi]);
 
+  const runFonbet = useCallback(async () => {
+    if (fbBusy) return;
+    setFbBusy(true);
+    try {
+      const res = await importFb({});
+      toast.success(
+        `Fonbet API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`,
+      );
+    } catch (e: any) {
+      toast.error(`Fonbet API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setFbBusy(false);
+    }
+  }, [fbBusy, importFb]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
