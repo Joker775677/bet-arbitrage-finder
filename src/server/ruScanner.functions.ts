@@ -133,7 +133,7 @@ async function fcExtractList(url: string, sportHint?: string): Promise<Extracted
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return null;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 40000);
+  const t = setTimeout(() => ctrl.abort(), 85000);
   try {
     const r = await fetch(FIRECRAWL, {
       method: "POST",
