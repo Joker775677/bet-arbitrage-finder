@@ -89,6 +89,8 @@ function eventsToOdds(events: any[]): { odds: OddRow[]; bookmakers: Set<string> 
   for (const ev of events) {
     const eventName = `${ev.home_team} vs ${ev.away_team}`;
     for (const bm of ev.bookmakers ?? []) {
+      // Filter to allow-listed bookmakers only
+      if (!ALLOWED_BOOKMAKERS.has(bm.key)) continue;
       bmSet.add(bm.title);
       for (const m of bm.markets ?? []) {
         for (const o of m.outcomes ?? []) {
