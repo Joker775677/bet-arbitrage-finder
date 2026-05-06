@@ -87,6 +87,7 @@ export function findArbitrages(
         bookmaker_name: l.bookmaker_name ?? "—",
         stake: round2(stake),
         payout: round2(stake * l.odds),
+        url: l.url,
       };
     });
 
