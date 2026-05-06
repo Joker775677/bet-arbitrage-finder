@@ -140,7 +140,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     const t0 = Date.now();
-    const engines: EngineKey[] = ["fonbet", "pari", "leon"];
+    const engines: EngineKey[] = ["fonbet", "pari", "leon", "zenit"];
 
     // 1. Параллельно тянем все БК
     const fetched = await Promise.all(engines.map((e) => fetchEngine(e)));
