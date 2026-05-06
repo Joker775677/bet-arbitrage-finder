@@ -1076,56 +1076,83 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" | "winline-detail" | "leon-detail" }[] = [
-      { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
-      { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
-      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
-      { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
-      { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
-      { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
-      { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
-      { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
-    ];
+    const sources = RU_SOURCES;
+    const bookieResults = await Promise.all(sources.map((s) => scanOneSource(s)));
+    return finalizeRuScan({ data: { stake: data.stake, minRoi: data.minRoi, results: bookieResults } });
+  });
 
-    const bookieResults: { name: string; url: string; events: RawEvent[]; error?: string }[] = [];
-    await Promise.all(
-      sources.map(async (s) => {
-        try {
-          if (s.parser === "winline-detail" || s.parser === "leon-detail") {
-            const extracted = await fcExtractEvent(s.url);
-            let events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
-            if (!events.length) {
-              const md = await fcScrape(s.url, 2500);
-              events = s.parser === "winline-detail" ? parseWinlineDetail(md, s.name) : parseLeonDetail(md, s.name);
-            }
-            console.log(`[ruScanner] ${s.name} detail extracted=${events.length} markets=${events[0]?.markets?.length ?? 0}`);
-            bookieResults.push({ name: s.name, url: s.url, events });
-            return;
-          }
-          const md = await fcScrape(s.url, 2500);
-          let events =
-            s.parser === "marathon" ? parseMarathonbet(md, s.name)
-              : s.parser === "tennisi" ? parseTennisi(md, s.name)
-                : s.parser === "betboom" ? parseBetBoom(md, s.name)
-                  : s.parser === "leon" ? parseLeon(md, s.name)
-                    : s.parser === "zenit" ? parseZenit(md, s.name)
-                      : s.parser === "fonbet" ? parseFonbet(md, s.name)
-                        : parseGenericLine(clean(md), s.name);
-          if (!events.length) {
-            const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
-            const list = await fcExtractList(s.url, sportHint);
-            events = eventsFromExtractedList(list, s.name, s.url, sportHint);
-            console.log(`[ruScanner] ${s.name} LLM-fallback events=${events.length}`);
-          } else {
-            console.log(`[ruScanner] ${s.name} markdown events=${events.length}`);
-          }
-          bookieResults.push({ name: s.name, url: s.url, events });
-        } catch (e: any) {
-          bookieResults.push({ name: s.name, url: s.url, events: [], error: e.message });
-        }
-      }),
-    );
+export interface RuSource {
+  name: string;
+  url: string;
+  parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" | "winline-detail" | "leon-detail";
+}
+
+export const RU_SOURCES: RuSource[] = [
+  { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
+  { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
+  { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
+  { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
+  { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
+  { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
+  { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
+  { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
+  { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
+];
+
+interface SourceScanResult {
+  name: string;
+  url: string;
+  events: RawEvent[];
+  error?: string;
+  ms: number;
+}
+
+async function scanOneSource(s: RuSource): Promise<SourceScanResult> {
+  const t0 = Date.now();
+  try {
+    if (s.parser === "winline-detail" || s.parser === "leon-detail") {
+      const extracted = await fcExtractEvent(s.url);
+      let events = eventFromExtracted(extracted, s.name, s.url, "Basketball", "lfb-women");
+      if (!events.length) {
+        const md = await fcScrape(s.url, 2500);
+        events = s.parser === "winline-detail" ? parseWinlineDetail(md, s.name) : parseLeonDetail(md, s.name);
+      }
+      return { name: s.name, url: s.url, events, ms: Date.now() - t0 };
+    }
+    const md = await fcScrape(s.url, 2500);
+    let events =
+      s.parser === "marathon" ? parseMarathonbet(md, s.name)
+        : s.parser === "tennisi" ? parseTennisi(md, s.name)
+          : s.parser === "betboom" ? parseBetBoom(md, s.name)
+            : s.parser === "leon" ? parseLeon(md, s.name)
+              : s.parser === "zenit" ? parseZenit(md, s.name)
+                : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                  : parseGenericLine(clean(md), s.name);
+    if (!events.length) {
+      const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
+      const list = await fcExtractList(s.url, sportHint);
+      events = eventsFromExtractedList(list, s.name, s.url, sportHint);
+    }
+    return { name: s.name, url: s.url, events, ms: Date.now() - t0 };
+  } catch (e: any) {
+    return { name: s.name, url: s.url, events: [], error: e?.message ?? String(e), ms: Date.now() - t0 };
+  }
+}
+
+export const listRuSources = createServerFn({ method: "GET" }).handler(async () => RU_SOURCES);
+
+export const scanRuSource = createServerFn({ method: "POST" })
+  .inputValidator((d: { source: RuSource }) => ({ source: d.source }))
+  .handler(async ({ data }) => scanOneSource(data.source));
+
+export const finalizeRuScan = createServerFn({ method: "POST" })
+  .inputValidator((d: any) => ({
+    stake: typeof d?.stake === "number" && d.stake > 0 ? d.stake : 10000,
+    minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
+    results: (Array.isArray(d?.results) ? d.results : []) as SourceScanResult[],
+  }))
+  .handler(async ({ data }) => {
+    const bookieResults = data.results;
 
     // Build OddRow entries; key events by canonical team pair
     const odds: OddRow[] = [];

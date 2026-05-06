@@ -1,36 +1,83 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Radar, RefreshCw, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Radar, RefreshCw, TrendingUp, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { scanRussianBookies } from "@/server/ruScanner.functions";
+import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 
 export const Route = createFileRoute("/ru-live")({
   head: () => ({ meta: [{ title: "RU Live Scanner — ArbScope" }] }),
   component: RuLivePage,
 });
 
+type SourceStatus = "pending" | "scanning" | "done" | "error";
+interface SourceState {
+  source: RuSource;
+  status: SourceStatus;
+  events: number;
+  ms?: number;
+  error?: string;
+}
+
+type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
+
 function RuLivePage() {
-  const scan = useServerFn(scanRussianBookies);
+  const scanOne = useServerFn(scanRuSource);
+  const finalize = useServerFn(finalizeRuScan);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [states, setStates] = useState<SourceState[]>(
+    RU_SOURCES.map((s) => ({ source: s, status: "pending", events: 0 })),
+  );
+  const [r, setR] = useState<FinalizeResult | null>(null);
 
-  const m = useMutation({
-    mutationFn: () => scan({ data: { stake, minRoi } }),
-    onError: (e: any) => toast.error(e.message ?? "Scan failed"),
-    onSuccess: (r) => {
-      const goodBks = r.stats.filter((s) => s.events > 0).length;
-      toast.success(`Сканирование завершено: ${r.arbs.length} вилок, ${goodBks}/${r.stats.length} БК`);
-    },
-  });
+  const run = useCallback(async () => {
+    if (running) return;
+    setRunning(true);
+    setR(null);
+    setStates(RU_SOURCES.map((s) => ({ source: s, status: "scanning", events: 0 })));
+    try {
+      const results = await Promise.all(
+        RU_SOURCES.map(async (source, idx) => {
+          try {
+            const res = await scanOne({ data: { source } });
+            setStates((prev) => prev.map((p, i) => i === idx
+              ? { ...p, status: res.error ? "error" : "done", events: res.events.length, ms: res.ms, error: res.error }
+              : p));
+            return res;
+          } catch (e: any) {
+            setStates((prev) => prev.map((p, i) => i === idx
+              ? { ...p, status: "error", error: e?.message ?? "fail" }
+              : p));
+            return { name: source.name, url: source.url, events: [], error: e?.message ?? "fail", ms: 0 };
+          }
+        }),
+      );
+      const fin = await finalize({ data: { stake, minRoi, results } });
+      setR(fin);
+      const ok = results.filter((x) => x.events.length > 0).length;
+      toast.success(`Готово: ${fin.arbs.length} вилок, ${ok}/${results.length} БК с событиями`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Ошибка сканирования");
+    } finally {
+      setRunning(false);
+    }
+  }, [running, scanOne, finalize, stake, minRoi]);
 
-  const r = m.data;
+  useEffect(() => {
+    // первый автозапуск
+    if (!r && !running) void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const doneCount = states.filter((s) => s.status === "done" || s.status === "error").length;
+  const totalCount = states.length;
 
   return (
     <div className="space-y-5 p-6">
@@ -40,7 +87,7 @@ function RuLivePage() {
           RU Live Scanner
         </h1>
         <p className="text-sm text-muted-foreground">
-          Автопарсинг Winline, Fonbet, Marathonbet, Tennisi, BetBoom, Leon и Zenit. Матчинг учитывает лигу и дату события.
+          Параллельный скан Winline, Fonbet, Marathonbet, Tennisi, BetBoom, Leon и Zenit с прогрессом по каждому источнику.
         </p>
       </div>
 
@@ -48,55 +95,63 @@ function RuLivePage() {
         <div className="grid gap-3 md:grid-cols-[1fr,1fr,auto] md:items-end">
           <div className="grid gap-1.5">
             <Label>Сумма ставки, ₽</Label>
-            <Input type="number" value={stake} onChange={(e) => setStake(Number(e.target.value) || 0)} />
+            <Input type="number" value={stake} onChange={(e) => setStake(Number(e.target.value) || 0)} disabled={running} />
           </div>
           <div className="grid gap-1.5">
             <Label>Мин. ROI, %</Label>
-            <Input type="number" step="0.1" value={minRoi} onChange={(e) => setMinRoi(Number(e.target.value) || 0)} />
+            <Input type="number" step="0.1" value={minRoi} onChange={(e) => setMinRoi(Number(e.target.value) || 0)} disabled={running} />
           </div>
-          <Button onClick={() => m.mutate()} disabled={m.isPending} size="lg">
-            {m.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
-            {m.isPending ? "Сканирую…" : "Сканировать"}
+          <Button onClick={run} disabled={running} size="lg">
+            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Radar className="mr-1 h-4 w-4" />}
+            {running ? `Сканирую ${doneCount}/${totalCount}…` : "Сканировать"}
           </Button>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Сканирование занимает до минуты: сканируются несколько БК и рынков — исходы, форы, тоталы и двойные шансы.
-        </p>
       </Card>
 
-      {r && (
-        <>
-          <Card className="p-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-semibold">Источники</h2>
-              <Button variant="outline" size="sm" onClick={() => m.mutate()} disabled={m.isPending}>
-                {m.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
-                {m.isPending ? "Сканирую…" : "Повторить скан"}
-              </Button>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {r.stats.map((s, idx) => (
-                <a
-                  key={`${s.bookmaker}-${s.url ?? ""}-${idx}`}
-                  href={s.url || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-md border border-border p-3 transition-colors hover:border-primary hover:bg-muted/40"
-                >
-                  <div className="flex items-center gap-2">
-                    {s.events > 0 ? (
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-destructive" />
-                    )}
-                    <span className="font-medium">{s.bookmaker}</span>
-                  </div>
-                  <Badge variant={s.events > 0 ? "default" : "destructive"} className="font-mono">
-                    {s.events} событий
-                  </Badge>
-                </a>
-              ))}
-            </div>
+      <Card className="p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold">Источники</h2>
+          <Button variant="outline" size="sm" onClick={run} disabled={running}>
+            {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+            {running ? `Сканирую ${doneCount}/${totalCount}…` : "Повторить скан"}
+          </Button>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {states.map((s, idx) => (
+            <a
+              key={`${s.source.name}-${s.source.url}-${idx}`}
+              href={s.source.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-between rounded-md border border-border p-3 transition-colors hover:border-primary hover:bg-muted/40"
+              title={s.error}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {s.status === "scanning" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                {s.status === "pending" && <Clock className="h-4 w-4 text-muted-foreground" />}
+                {s.status === "done" && (s.events > 0
+                  ? <CheckCircle2 className="h-4 w-4 text-primary" />
+                  : <AlertCircle className="h-4 w-4 text-destructive" />)}
+                {s.status === "error" && <AlertCircle className="h-4 w-4 text-destructive" />}
+                <span className="font-medium truncate">{s.source.name}</span>
+                {typeof s.ms === "number" && (
+                  <span className="text-[11px] text-muted-foreground font-mono">{(s.ms / 1000).toFixed(1)}с</span>
+                )}
+              </div>
+              <Badge
+                variant={s.status === "done" && s.events > 0 ? "default" : s.status === "scanning" || s.status === "pending" ? "secondary" : "destructive"}
+                className="font-mono"
+              >
+                {s.status === "scanning" ? "скан…"
+                  : s.status === "pending" ? "ожидание"
+                  : s.status === "error" ? "ошибка"
+                  : `${s.events} событий`}
+              </Badge>
+            </a>
+          ))}
+        </div>
+        {r && (
+          <>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
               <span>Всего коэф.: <span className="font-mono text-foreground">{r.totalOdds}</span></span>
               <span>Уникальных событий: <span className="font-mono text-foreground">{r.matchedEvents}</span></span>
@@ -105,10 +160,14 @@ function RuLivePage() {
               )}
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              ⚠️ Коэффициенты у БК меняются каждые несколько секунд. Это снимок на момент сканирования — на сайте БК могут отличаться.
+              ⚠️ Коэффициенты у БК меняются каждые несколько секунд — это снимок на момент сканирования.
             </p>
-          </Card>
+          </>
+        )}
+      </Card>
 
+      {r && (
+        <>
           <Card>
             <div className="flex items-center justify-between border-b border-border p-4">
               <div className="flex items-center gap-2">
