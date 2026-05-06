@@ -61,12 +61,24 @@ function parseOdds3(s: string): [number, number, number] | null {
 }
 
 // Parse Winline / Fonbet style: [team1  team2](url) on one line, odds on next lines
+// Skip cybersports / virtual / non-real events
+function isJunkEvent(team1: string, team2: string, url: string): boolean {
+  const blob = `${team1} ${team2} ${url}`.toLowerCase();
+  // Esports/FIFA player tags in parentheses, e.g. "Bayern (Shrek)"
+  if (/\([^)]+\)/.test(team1) || /\([^)]+\)/.test(team2)) return true;
+  // Fonbet category 118 = FIFA cybersport
+  if (/\/category\/118\//.test(url)) return true;
+  // Common esports / virtual markers
+  if (/(cyber|fifa|киберфутбол|виртуал|esoccer|e-?sport|efootball)/i.test(blob)) return true;
+  return false;
+}
+
 function parseGenericLine(lines: string[], bookmaker: string): RawEvent[] {
   const out: RawEvent[] = [];
   for (let i = 0; i < lines.length; i++) {
     const ev = parseEventLine(lines[i]);
     if (!ev) continue;
-    // Look for 1X2 odds in next 5 lines (joined)
+    if (isJunkEvent(ev.team1, ev.team2, ev.url)) continue;
     const window = lines.slice(i + 1, i + 6).join(" ");
     const odds = parseOdds3(window) ?? parseOdds3(lines[i + 1] ?? "");
     if (odds) out.push({ bookmaker, url: ev.url, team1: ev.team1, team2: ev.team2, odds });
