@@ -378,7 +378,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const odds: OddRow[] = [];
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
         const outcomes: [string, number][] = canonical.flip
           ? [["1", ev.odds[2]], ["X", ev.odds[1]], ["2", ev.odds[0]]]
           : [["1", ev.odds[0]], ["X", ev.odds[1]], ["2", ev.odds[2]]];
@@ -404,7 +404,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, ev.dateKey);
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
         const isCyr = /[а-яё]/i.test(ev.team1);
         if (!displayMap.has(canonical.key) || isCyr) {
           displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
@@ -425,7 +425,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = canonicalEvent(ev.team1, ev.team2, ev.dateKey).key;
+        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev)).key;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
