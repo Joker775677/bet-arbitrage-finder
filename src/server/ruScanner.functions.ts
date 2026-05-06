@@ -238,11 +238,16 @@ function normTeam(name: string): string {
   return s;
 }
 
-function eventKey(team1: string, team2: string, dateKey?: string): string {
+function canonicalEvent(team1: string, team2: string, dateKey?: string): { key: string; flip: boolean; display: string } {
   const a = normTeam(team1);
   const b = normTeam(team2);
-  // order-independent so home/away swaps still match
-  return `${dateKey ?? "no-date"}|${[a, b].sort().join("|")}`;
+  const flip = a > b;
+  const pair = flip ? `${b}|${a}` : `${a}|${b}`;
+  return {
+    key: `${dateKey ?? "no-date"}|${pair}`,
+    flip,
+    display: flip ? `${team2} — ${team1}` : `${team1} — ${team2}`,
+  };
 }
 
 function displayKey(key: string): string {
