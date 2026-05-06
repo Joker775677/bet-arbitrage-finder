@@ -71,7 +71,7 @@ function expectedOutcomes(market: string, rows: OddRow[]): number {
   }
   if (m === "DC") return 3;
   if (m === "BTTS") return 2;
-  if (m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL") || m.startsWith("HANDICAP") || m === "OU") return 2;
+  if (m.includes("TOTAL") || m.includes("HANDICAP") || m === "OU") return 2;
   return 2;
 }
 
@@ -89,7 +89,7 @@ export function findArbitrages(
     if (JUNK_TEAM_RE.test(o.event_name)) continue;
     const m = o.market.toUpperCase();
     let groupMarket = o.market;
-    if (m === "HANDICAP" || m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL")) {
+    if (m.includes("HANDICAP") || m.includes("TOTAL")) {
       // outcome выглядит как "1 -1.5" / "Over 2.5" / "Under 2.5"
       const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
       const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
@@ -173,7 +173,7 @@ export function findNearArbs(odds: OddRow[], limit = 20): NearArb[] {
     if (JUNK_TEAM_RE.test(o.event_name)) continue;
     const m = o.market.toUpperCase();
     let groupMarket = o.market;
-    if (m === "HANDICAP" || m.startsWith("TOTAL") || m.startsWith("TEAM_TOTAL")) {
+    if (m.includes("HANDICAP") || m.includes("TOTAL")) {
       const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
       const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
       if (line === null) continue;
