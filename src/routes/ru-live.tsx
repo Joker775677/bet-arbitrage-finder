@@ -136,6 +136,19 @@ function RuLivePage() {
     }
   }, [lnBusy, importLn]);
 
+  const runZenit = useCallback(async () => {
+    if (znBusy) return;
+    setZnBusy(true);
+    try {
+      const res = await importZn({});
+      toast.success(`Zenit API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Zenit API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setZnBusy(false);
+    }
+  }, [znBusy, importZn]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
