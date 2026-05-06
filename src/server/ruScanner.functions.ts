@@ -26,7 +26,17 @@ async function fcScrape(url: string, waitFor = 6000): Promise<string> {
   const r = await fetch(FIRECRAWL, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor }),
+    body: JSON.stringify({
+      url,
+      formats: ["markdown"],
+      onlyMainContent: true,
+      waitFor,
+      maxAge: 0,
+      storeInCache: false,
+      removeBase64Images: true,
+      timeout: 90000,
+      location: { country: "RU", languages: ["ru-RU"] },
+    }),
   });
   const j: any = await r.json();
   if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
@@ -749,13 +759,13 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" }[] = [
-      { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "fonbet" },
-      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
-      { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
-      { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "betboom" },
-      { name: "Leon", url: "https://leon.ru/", parser: "leon" },
-      { name: "Zenit", url: "https://zenit.win/", parser: "zenit" },
+      { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
+      { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
+      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
+      { name: "Tennisi", url: "https://tennisi.bet/sport", parser: "tennisi" },
+      { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
+      { name: "Leon", url: "https://leon.ru/bets", parser: "leon" },
+      { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
