@@ -133,19 +133,28 @@ function pickProxyUrl() {
     : `http://${host}:${port}`;
 }
 
-async function fetchFonbetSnapshot(scopeMarket = 1600) {
+// Конфигурация ресурсных хостов на разных Fonbet-движках (Pari использует тот же engine)
+const ENGINE_CONFIG = {
+  fonbet: { host: "line52w.bk6bba-resources.com", referer: "https://www.fon.bet/", defaultScope: 1600 },
+  pari:   { host: "line-lb01-w.pb06e2-resources.com", referer: "https://pari.ru/",   defaultScope: 2300 },
+};
+
+async function fetchEngineSnapshot(engine, scopeMarket) {
+  const cfg = ENGINE_CONFIG[engine];
+  if (!cfg) throw new Error(`unknown engine ${engine}`);
   const proxyUrl = pickProxyUrl();
   const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-  const url = `https://line52w.bk6bba-resources.com/events/list?lang=ru&scopeMarket=${scopeMarket}`;
+  const url = `https://${cfg.host}/events/list?lang=ru&scopeMarket=${scopeMarket || cfg.defaultScope}`;
   const res = await undiciFetch(url, {
     dispatcher,
     headers: {
       "Accept": "application/json",
       "Accept-Encoding": "gzip, deflate",
+      "Referer": cfg.referer,
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
     },
   });
-  if (!res.ok) throw new Error(`fonbet ${scopeMarket} status ${res.status}`);
+  if (!res.ok) throw new Error(`${engine} ${scopeMarket} status ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   // undici обычно сам распаковывает, но на всякий случай:
   let text;
