@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { RU_SOURCES, scanRuSource, finalizeRuScan, type RuSource } from "@/server/ruScanner.functions";
 import { persistRuScan } from "@/server/ruPersist.functions";
-import { importFonbet, importPari } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari, importLeon } from "@/server/fonbetImport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap } from "lucide-react";
 
