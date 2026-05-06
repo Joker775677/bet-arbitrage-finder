@@ -26,7 +26,17 @@ async function fcScrape(url: string, waitFor = 6000): Promise<string> {
   const r = await fetch(FIRECRAWL, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor }),
+    body: JSON.stringify({
+      url,
+      formats: ["markdown"],
+      onlyMainContent: true,
+      waitFor,
+      maxAge: 0,
+      storeInCache: false,
+      removeBase64Images: true,
+      timeout: 90000,
+      location: { country: "RU", languages: ["ru-RU"] },
+    }),
   });
   const j: any = await r.json();
   if (!j.success) throw new Error(`Firecrawl: ${JSON.stringify(j).slice(0, 200)}`);
@@ -486,6 +496,99 @@ function parseZenit(md: string, bookmaker: string): RawEvent[] {
   return out;
 }
 
+function sideOdd(text: string): { side: "1" | "X" | "2"; odds: number } | null {
+  const s = text.replace(/,/g, ".").replace(/\s+/g, "").replace(/^П/, "").replace(/[Хх]/, "X");
+  const m = s.match(/^([12X])(\d{1,2}(?:\.\d{1,3})?)$/);
+  if (!m) return null;
+  const odds = Number(m[2]);
+  return validOdd(odds) ? { side: m[1] as "1" | "X" | "2", odds } : null;
+}
+
+function handicapOdd(text: string): { side?: "1" | "2"; line: number; odds: number } | null {
+  const s = text.replace(/−/g, "-").replace(/,/g, ".").replace(/\s+/g, " ").trim();
+  const leon = s.match(/^([12])\s*\(([+-]?\d+(?:\.\d+)?)\)\s*(\d{1,2}(?:\.\d{1,3})?)$/);
+  if (leon) {
+    const odds = Number(leon[3]);
+    return validOdd(odds) ? { side: leon[1] as "1" | "2", line: Number(leon[2]), odds } : null;
+  }
+  const compact = s.replace(/\s+/g, "").match(/^([+-]?\d+(?:\.\d)?)(\d{1,2}(?:\.\d{2,3})?)$/);
+  if (compact) {
+    const odds = Number(compact[2]);
+    return validOdd(odds) ? { line: Number(compact[1]), odds } : null;
+  }
+  return null;
+}
+
+function parseDetailTeamPair(lines: string[]): { team1: string; team2: string; dateKey?: string } | null {
+  const strip = (s: string) => cleanParticipantName(s.replace(/^#{1,6}\s*/, ""));
+  const bad = /^(?:все|основные|тоталы|форы|исход|тотал|фора|победитель|похожие|купoн|купон|сегодня|завтра|п|в|-|матч|баскетбол)$/i;
+  const looksTeam = (s: string) => {
+    const x = strip(s);
+    return x.length >= 3 && x.length <= 70 && /[a-zа-яё]/i.test(x) && !bad.test(x) && !/^!\[/.test(x) && !/^eJz/.test(x) && !/^\d/.test(x);
+  };
+  for (let i = 0; i < Math.min(lines.length - 1, 40); i++) {
+    if (looksTeam(lines[i]) && looksTeam(lines[i + 1])) {
+      return { team1: strip(lines[i]), team2: strip(lines[i + 1]), dateKey: parseDateKey(lines.slice(0, 20).join(" ")) };
+    }
+  }
+  return null;
+}
+
+function pushHandicap(groups: Map<string, { outcome: string; odds: number }[]>, period: string, side: "1" | "2", line: number, odds: number) {
+  const abs = Math.abs(line);
+  const market = `${period ? `${period} ` : ""}Фора ${fmtLine(abs)}`.trim();
+  const arr = groups.get(market) ?? [];
+  arr.push({ outcome: `Ф${side} ${fmtLine(line)}`, odds });
+  groups.set(market, arr);
+}
+
+function parseWinlineDetail(md: string, bookmaker: string): RawEvent[] {
+  const lines = clean(md).map((l) => l.replace(/[\\|]/g, "").trim()).filter(Boolean);
+  const pair = parseDetailTeamPair(lines);
+  if (!pair) return [];
+  const markets: RawMarket[] = [];
+  const groups = new Map<string, { outcome: string; odds: number }[]>();
+  for (let i = 0; i < lines.length; i++) {
+    if (/^1\s*(?:четверть|[-–]?й\s*период)$/i.test(lines[i])) {
+      const a = sideOdd(lines[i + 1] ?? ""), b = sideOdd(lines[i + 3] ?? "");
+      if (a?.side === "1") pushHandicap(groups, "1 четверть", "1", -0.5, a.odds);
+      if (b?.side === "2") pushHandicap(groups, "1 четверть", "2", -0.5, b.odds);
+    }
+    const period = /1\s*(?:четверть|[-–]?й\s*период).*фора/i.test(lines[i]) ? "1 четверть" : /1\s*половина.*фора/i.test(lines[i]) ? "1 половина" : /^#{0,6}\s*Фора/i.test(lines[i]) ? "" : undefined;
+    if (period !== undefined) {
+      let side: "1" | "2" | undefined;
+      for (let j = i + 1; j < Math.min(lines.length, i + 35); j++) {
+        if (/^#{1,6}\s/.test(lines[j]) && j > i + 1) break;
+        if (teamSim(teamSig(lines[j]), teamSig(pair.team1)) > 0.8) { side = "1"; continue; }
+        if (teamSim(teamSig(lines[j]), teamSig(pair.team2)) > 0.8) { side = "2"; continue; }
+        const h = handicapOdd(lines[j]);
+        if (side && h) pushHandicap(groups, period, side, h.line, h.odds);
+      }
+    }
+  }
+  for (const [market, selections] of groups) addMarket(markets, market, selections);
+  return markets.length ? [{ bookmaker, url: "https://winline.ru/stavki/event/15721564", sport: "Basketball", team1: pair.team1, team2: pair.team2, markets, dateKey: pair.dateKey, league: "lfb-women" }] : [];
+}
+
+function parseLeonDetail(md: string, bookmaker: string): RawEvent[] {
+  const lines = clean(md).map((l) => l.replace(/[\\|]/g, "").trim()).filter(Boolean);
+  const pair = parseDetailTeamPair(lines);
+  if (!pair) return [];
+  const markets: RawMarket[] = [];
+  const groups = new Map<string, { outcome: string; odds: number }[]>();
+  for (let i = 0; i < lines.length; i++) {
+    const period = /1[-–]?я\s*(?:четверть|период).*фора/i.test(lines[i]) ? "1 четверть" : /1[-–]?я\s*половина.*фора/i.test(lines[i]) ? "1 половина" : /^Фора$/i.test(lines[i]) ? "" : undefined;
+    if (period === undefined) continue;
+    for (let j = i + 1; j < Math.min(lines.length, i + 24); j++) {
+      if (/^(?:Тотал|Победитель|Исход|Похожие|[12][-–]?я\s)/i.test(lines[j]) && j > i + 1) break;
+      const h = handicapOdd(lines[j]);
+      if (h?.side) pushHandicap(groups, period, h.side, h.line, h.odds);
+    }
+  }
+  for (const [market, selections] of groups) addMarket(markets, market, selections);
+  return markets.length ? [{ bookmaker, url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", sport: "Basketball", team1: pair.team1, team2: pair.team2, markets, dateKey: pair.dateKey, league: "lfb-women" }] : [];
+}
+
 // === Team name normalization ===
 // Map common EN ↔ RU spellings to a canonical form
 const SYNONYMS: Record<string, string> = {
@@ -748,29 +851,33 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" }[] = [
-      { name: "Winline", url: "https://winline.ru/stavki/futbol/", parser: "generic" },
-      { name: "Fonbet", url: "https://www.fon.bet/sports/football", parser: "fonbet" },
-      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/popular/Football", parser: "marathon" },
-      { name: "Tennisi", url: "https://tennisi.bet/sport/football", parser: "tennisi" },
-      { name: "BetBoom", url: "https://betboom.ru/sport/football", parser: "betboom" },
-      { name: "Leon", url: "https://leon.ru/", parser: "leon" },
-      { name: "Zenit", url: "https://zenit.win/", parser: "zenit" },
+    const sources: { name: string; url: string; parser: "generic" | "fonbet" | "marathon" | "tennisi" | "betboom" | "leon" | "zenit" | "winline-detail" | "leon-detail" }[] = [
+      { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
+      { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
+      { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
+      { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
+      { name: "Tennisi", url: "https://tennisi.bet/sport", parser: "tennisi" },
+      { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
+      { name: "Leon", url: "https://leon.ru/bets", parser: "leon" },
+      { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
+      { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
     ];
 
     const bookieResults: { name: string; events: RawEvent[]; error?: string }[] = [];
     await Promise.all(
       sources.map(async (s) => {
         try {
-          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" ? 12000 : 6000);
+          const md = await fcScrape(s.url, s.parser === "betboom" || s.parser === "zenit" || s.parser === "leon" || s.parser.endsWith("detail") ? 12000 : 6000);
           const events =
             s.parser === "marathon" ? parseMarathonbet(md, s.name)
               : s.parser === "tennisi" ? parseTennisi(md, s.name)
                 : s.parser === "betboom" ? parseBetBoom(md, s.name)
                   : s.parser === "leon" ? parseLeon(md, s.name)
-                    : s.parser === "zenit" ? parseZenit(md, s.name)
-                      : s.parser === "fonbet" ? parseFonbet(md, s.name)
-                        : parseGenericLine(clean(md), s.name);
+                    : s.parser === "leon-detail" ? parseLeonDetail(md, s.name)
+                      : s.parser === "winline-detail" ? parseWinlineDetail(md, s.name)
+                        : s.parser === "zenit" ? parseZenit(md, s.name)
+                          : s.parser === "fonbet" ? parseFonbet(md, s.name)
+                            : parseGenericLine(clean(md), s.name);
           bookieResults.push({ name: s.name, events });
         } catch (e: any) {
           bookieResults.push({ name: s.name, events: [], error: e.message });
