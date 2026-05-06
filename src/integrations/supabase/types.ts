@@ -14,7 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          currency: string
+          default_stake: number
+          id: number
+          margin: number
+          min_roi: number
+          timezone: string
+        }
+        Insert: {
+          currency?: string
+          default_stake?: number
+          id?: number
+          margin?: number
+          min_roi?: number
+          timezone?: string
+        }
+        Update: {
+          currency?: string
+          default_stake?: number
+          id?: number
+          margin?: number
+          min_roi?: number
+          timezone?: string
+        }
+        Relationships: []
+      }
+      bookmakers: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          is_active: boolean
+          max_stake: number | null
+          min_stake: number | null
+          name: string
+          notes: string | null
+          source_type: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          is_active?: boolean
+          max_stake?: number | null
+          min_stake?: number | null
+          name: string
+          notes?: string | null
+          source_type?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          is_active?: boolean
+          max_stake?: number | null
+          min_stake?: number | null
+          name?: string
+          notes?: string | null
+          source_type?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      odds: {
+        Row: {
+          bookmaker_id: string
+          created_at: string
+          event_name: string
+          event_time: string | null
+          id: string
+          market: string
+          odds: number
+          outcome: string
+          sport: string
+          tournament: string | null
+          updated_at: string
+        }
+        Insert: {
+          bookmaker_id: string
+          created_at?: string
+          event_name: string
+          event_time?: string | null
+          id?: string
+          market: string
+          odds: number
+          outcome: string
+          sport: string
+          tournament?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bookmaker_id?: string
+          created_at?: string
+          event_name?: string
+          event_time?: string | null
+          id?: string
+          market?: string
+          odds?: number
+          outcome?: string
+          sport?: string
+          tournament?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "odds_bookmaker_id_fkey"
+            columns: ["bookmaker_id"]
+            isOneToOne: false
+            referencedRelation: "bookmakers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
