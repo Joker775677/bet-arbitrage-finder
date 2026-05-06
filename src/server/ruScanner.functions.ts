@@ -5,6 +5,7 @@ const FIRECRAWL = "https://api.firecrawl.dev/v2/scrape";
 const FIRECRAWL_FETCH_TIMEOUT_MS = 43000;
 const FIRECRAWL_RENDER_TIMEOUT_MS = 41000;
 const LIST_FALLBACK_BUDGET_MS = 12000;
+const ENABLE_RU_AI_FALLBACK = false;
 
 interface RawEvent {
   bookmaker: string;
@@ -1127,13 +1128,11 @@ export interface RuSource {
 
 export const RU_SOURCES: RuSource[] = [
   { name: "Winline", url: "https://winline.ru/stavki/sport", parser: "generic" },
-  { name: "Winline", url: "https://winline.ru/stavki/sport/%D0%91%D0%B0%D1%81%D0%BA%D0%B5%D1%82%D0%B1%D0%BE%D0%BB/%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F/%D0%9B%D0%B8%D0%B3%D0%B0%20LFB,%20%D0%96%D0%B5%D0%BD%D1%89%D0%B8%D0%BD%D1%8B/15721564", parser: "winline-detail" },
   { name: "Fonbet", url: "https://www.fon.bet/sports", parser: "fonbet" },
   { name: "Marathonbet", url: "https://www.marathonbet.ru/su/", parser: "marathon" },
   { name: "Tennisi", url: "https://tennisi.bet/live", parser: "tennisi" },
   { name: "BetBoom", url: "https://betboom.ru/sport", parser: "betboom" },
   { name: "Leon", url: "https://leon.bet/ru-ru/live", parser: "leon" },
-  { name: "Leon", url: "https://leon.ru/bets/Basketball/france/lfb-women/1970324851752779-toulouse-metropole-basket-w-angers-basket", parser: "leon-detail" },
   { name: "Zenit", url: "https://zenit.win/line", parser: "zenit" },
 ];
 
@@ -1166,7 +1165,7 @@ async function scanOneSource(s: RuSource): Promise<SourceScanResult> {
               : s.parser === "zenit" ? parseZenit(md, s.name)
                 : s.parser === "fonbet" ? parseFonbet(md, s.name)
                   : parseGenericLine(clean(md), s.name);
-    if (!events.length) {
+    if (!events.length && ENABLE_RU_AI_FALLBACK) {
       const sportHint = /basket|баскет/i.test(s.url) ? "Basketball" : undefined;
       const list = await withTimeout(fcExtractList(s.url, sportHint), LIST_FALLBACK_BUDGET_MS);
       events = eventsFromExtractedList(list, s.name, s.url, sportHint);
