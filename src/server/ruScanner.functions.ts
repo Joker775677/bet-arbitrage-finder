@@ -229,6 +229,7 @@ function eventsFromExtractedList(extracted: ExtractedListJSON | null, bookmaker:
   }
   return out;
 }
+function eventFromExtracted(
   extracted: ExtractedEventJSON | null,
   bookmaker: string,
   url: string,
