@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { importFonbet, importPari, importLeon } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari, importLeon, importZenit } from "@/server/fonbetImport.functions";
 import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap } from "lucide-react";
