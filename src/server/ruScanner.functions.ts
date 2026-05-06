@@ -675,7 +675,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const odds: OddRow[] = [];
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
         const markets = orientMarkets(ev.markets?.length ? ev.markets : legacyMarkets(ev.odds), canonical.flip);
         for (const market of markets) {
           for (const selection of market.selections) {
@@ -683,7 +683,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
               id: `${br.name}-${canonical.key}-${market.market}-${selection.outcome}`,
               bookmaker_id: br.name,
               bookmaker_name: br.name,
-              sport: "Football",
+              sport: ev.sport ?? "Football",
               tournament: null,
               event_name: canonical.key,
               event_time: null,
@@ -701,7 +701,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const displayMap = new Map<string, string>();
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev));
+        const canonical = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey);
         const isCyr = /[а-яё]/i.test(ev.team1);
         if (!displayMap.has(canonical.key) || isCyr) {
           displayMap.set(canonical.key, ev.dateKey ? `${ev.dateKey} · ${canonical.display}` : canonical.display);
@@ -722,7 +722,7 @@ export const scanRussianBookies = createServerFn({ method: "POST" })
     const urlMap = new Map<string, Map<string, string>>(); // key → bm → url
     for (const br of bookieResults) {
       for (const ev of br.events) {
-        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev)).key;
+        const k = canonicalEvent(ev.team1, ev.team2, eventLeague(ev), ev.dateKey).key;
         let bmUrls = urlMap.get(k);
         if (!bmUrls) { bmUrls = new Map(); urlMap.set(k, bmUrls); }
         bmUrls.set(br.name, ev.url);
