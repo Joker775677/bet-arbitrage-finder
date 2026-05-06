@@ -25,6 +25,7 @@ interface SourceState {
 }
 
 type FinalizeResult = Awaited<ReturnType<typeof finalizeRuScan>>;
+const SCAN_CONCURRENCY = 2;
 
 function RuLivePage() {
   const scanOne = useServerFn(scanRuSource);
@@ -43,8 +44,11 @@ function RuLivePage() {
     setR(null);
     setStates(RU_SOURCES.map((s) => ({ source: s, status: "scanning", events: 0 })));
     try {
-      const results = await Promise.all(
-        RU_SOURCES.map(async (source, idx) => {
+      const results: Awaited<ReturnType<typeof scanOne>>[] = [];
+      for (let start = 0; start < RU_SOURCES.length; start += SCAN_CONCURRENCY) {
+        const batch = RU_SOURCES.slice(start, start + SCAN_CONCURRENCY);
+        const batchResults = await Promise.all(batch.map(async (source, offset) => {
+          const idx = start + offset;
           try {
             const res = await scanOne({ data: { source } });
             setStates((prev) => prev.map((p, i) => i === idx
@@ -57,8 +61,9 @@ function RuLivePage() {
               : p));
             return { name: source.name, url: source.url, events: [], error: e?.message ?? "fail", ms: 0 };
           }
-        }),
-      );
+        }));
+        results.push(...batchResults);
+      }
       const fin = await finalize({ data: { stake, minRoi, results } });
       setR(fin);
       const ok = results.filter((x) => x.events.length > 0).length;
