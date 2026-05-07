@@ -121,9 +121,12 @@ async function scrapeWinlineDom() {
 
     const payload = await page.evaluate(() => {
       const uniq = (arr) => [...new Set(arr)];
-      const textOf = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+      const textOf = (el) => {
+        const raw = el?.innerText || el?.textContent || "";
+        return raw.replace(/\u00a0/g, " ").trim();
+      };
       const pickMatchOdds = (cardText) => {
-        const idx = cardText.indexOf("ĞœĞ°Ñ‚Ñ‡");
+        const idx = cardText.indexOf("Ìàò÷");
         const src = idx >= 0 ? cardText.slice(idx) : cardText;
         const nums = (src.match(/\d{1,2}\.\d{2}/g) || [])
           .map((x) => Number(x))
@@ -158,17 +161,20 @@ async function scrapeWinlineDom() {
           .filter(Boolean);
         const flat = uniq(lines.length ? lines : cardText.split(/\s{2,}/).map((x) => x.trim()).filter(Boolean));
         const odds = pickMatchOdds(cardText);
-        const timeText = flat.find((x) => /^(Ğ¡ĞµĞ³Ğ¾Ğ´Ğ½Ñ|Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(x)) || null;
-        const isLive = /(?:^|\s)(?:1Ğ¢|2Ğ¢|3Ğ¢|\d{1,2}'(?:\+\d+)?|Tx\d+)/i.test(cardText);
-
+        const timeText = flat.find((x) => /\d{1,2}:\d{2}/.test(x))
+          || cardText.match(/(Ñåãîäíÿ|Çàâòğà|\d{2}\.\d{2})\s+\d{1,2}:\d{2}/i)?.[0]
+          || null;
+        const isLive = /(?:^|\s)(?:1Ò|2Ò|3Ò|\d{1,2}'(?:\+\d+)?|Tx\d+)/i.test(cardText);
         const teams = [];
         for (const row of flat) {
           if (!row) continue;
-          if (/^(Ğ¡ĞµĞ³Ğ¾Ğ´Ğ½Ñ|Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(row)) continue;
+          if (/^(Ñåãîäíÿ|Çàâòğà|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(row)) continue;
           if (/^\d+$/.test(row)) continue;
+          if (/^\.st\d+\{/.test(row)) continue;
           if (/^(Ğ’ÑĞµ|Ğ’Ğ¸Ğ´ĞµĞ¾|Ğ›Ğ¸Ğ½Ğ¸Ñ|Live ÑĞµĞ¹Ñ‡Ğ°Ñ|Ğ˜Ğ³Ñ€Ñ‹ 24\/7|ĞšĞ¸Ğ±ĞµÑ€ÑĞ¿Ğ¾Ñ€Ñ‚)$/i.test(row)) continue;
           if (/^\d{1,2}\.\d{1,2}$/.test(row)) continue;
           if (/\/stavki\/event\//i.test(row)) continue;
+          if (/^(Ìàò÷|1 òàéì|2 òàéì|1Ò|2Ò)$/i.test(row)) continue;
           teams.push(row);
           if (teams.length >= 2) break;
         }
