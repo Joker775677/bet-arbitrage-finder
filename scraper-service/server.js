@@ -490,7 +490,9 @@ function normalizeZenit(data, isLive) {
     const odds = [];
     const seen = new Set();
     for (const f of g.f_l || []) {
-      if (typeof f.o !== "number" || typeof f.h !== "number" || f.h < 1.01) continue;
+      const oNum = typeof f.o === "number" ? f.o : parseInt(f.o, 10);
+      const hNum = typeof f.h === "number" ? f.h : parseFloat(f.h);
+      if (!Number.isFinite(oNum) || !Number.isFinite(hNum) || hNum < 1.01) continue;
       let line = null;
       if (typeof f.oddKey === "string") {
         const parts = f.oddKey.split("|");
@@ -499,8 +501,7 @@ function normalizeZenit(data, isLive) {
           if (Number.isFinite(v)) line = v;
         }
       }
-      // для HANDICAP/TOTAL без линии не работаем
-      const mapped = mapZenitOutcome(f.o, line);
+      const mapped = mapZenitOutcome(oNum, line);
       if (!mapped) continue;
       const key = `${mapped.market}|${mapped.outcome}`;
       if (seen.has(key)) continue;
