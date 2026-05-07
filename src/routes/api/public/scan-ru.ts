@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { scanRussianBookies } from "@/server/ruScanner.functions";
+import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
@@ -21,15 +21,15 @@ export const Route = createFileRoute("/api/public/scan-ru")({
 async function runRuScan() {
   const startedAt = Date.now();
   try {
-    const result = await scanRussianBookies({ data: { stake: 10000, minRoi: 1 } });
+    const result = await scanAllAndFindArbs({ data: { stake: 10000, minRoi: 1 } });
     const supabase = getSupabase();
 
     // Save run
     const { data: runRow } = await supabase
       .from("scan_runs")
       .insert({
-        sports_scanned: ["ru-scrape"],
-        events_scanned: result.matchedEvents ?? 0,
+        sports_scanned: ["ru-engine"],
+        events_scanned: result.uniqueEvents ?? result.matchedEvents ?? 0,
         bookmakers_count: result.stats?.length ?? 0,
         arbs_found: result.arbs.length,
         duration_ms: Date.now() - startedAt,
@@ -52,7 +52,7 @@ async function runRuScan() {
         profit: a.profit,
         legs: a.legs,
         bookmakers: a.legs.map((l: any) => l.bookmaker_name),
-        source: "ru_scrape",
+        source: "ru_engine",
       }));
       const keys = Array.from(new Set(rows.map((r) => r.match_key)));
       await supabase.from("surebets").delete().in("match_key", keys);
@@ -65,8 +65,13 @@ async function runRuScan() {
       stats: result.stats ?? [],
       bookies: result.stats?.length ?? 0,
       totalOdds: result.totalOdds ?? 0,
+      uniqueEvents: result.uniqueEvents ?? 0,
       matchedEvents: result.matchedEvents ?? 0,
-      topMatches: result.topMatches ?? [],
+      matchedLive: result.matchedLive ?? 0,
+      matchedPrematch: result.matchedPrematch ?? 0,
+      arbsLive: result.arbsLive ?? 0,
+      arbsPrematch: result.arbsPrematch ?? 0,
+      nearArbs: result.nearArbs ?? [],
       durationMs: Date.now() - startedAt,
       scannedAt: result.scannedAt,
       runId: runRow?.id,
