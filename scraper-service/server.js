@@ -38,13 +38,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true, proxies: PROXIES.length }));
 
-app.post("/scrape", async (req, res) => {
-  if (TOKEN && req.headers["x-token"] !== TOKEN) {
-    return res.status(401).json({ error: "unauthorized" });
-  }
-  const { url, waitFor = 4000, waitForSelector = null } = req.body || {};
-  if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
-
+async function scrapePage({ url, waitFor = 4000, waitForSelector = null }) {
   const proxy = nextProxy();
   const t0 = Date.now();
   let browser;
@@ -72,7 +66,7 @@ app.post("/scrape", async (req, res) => {
     const title = await page.title();
     const markdown = td.turndown(html);
 
-    return res.json({
+    return {
       ok: true,
       url,
       title,
@@ -80,16 +74,122 @@ app.post("/scrape", async (req, res) => {
       length: markdown.length,
       proxyUsed: proxy ? proxy.server : null,
       ms: Date.now() - t0,
-    });
+    };
   } catch (e) {
-    return res.status(502).json({
+    return {
       ok: false,
       error: e?.message || String(e),
       proxyUsed: proxy ? proxy.server : null,
       ms: Date.now() - t0,
-    });
+    };
   } finally {
     if (browser) await browser.close().catch(() => {});
+  }
+}
+
+app.post("/scrape", async (req, res) => {
+  if (TOKEN && req.headers["x-token"] !== TOKEN) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  const { url, waitFor = 4000, waitForSelector = null } = req.body || {};
+  if (!url || typeof url !== "string") return res.status(400).json({ error: "url required" });
+  const result = await scrapePage({ url, waitFor, waitForSelector });
+  return res.status(result.ok ? 200 : 502).json(result);
+});
+
+function parseWinlineTeams(raw) {
+  const compact = raw.replace(/\s+/g, " ").trim();
+  for (const sep of [" — ", " - ", " – ", " vs "]) {
+    const idx = compact.indexOf(sep);
+    if (idx > 0) {
+      const team1 = compact.slice(0, idx).trim();
+      const team2 = compact.slice(idx + sep.length).trim();
+      if (team1 && team2) return [team1, team2];
+    }
+  }
+  return null;
+}
+
+function parseWinlineMarkdown(md) {
+  const lines = md
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const events = [];
+  const seen = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    const link = lines[i].match(/\]\((?:https?:\/\/winline\.ru)?\/stavki\/event\/(\d+)\)/i);
+    if (!link) continue;
+
+    const eventId = Number(link[1]);
+    if (!Number.isFinite(eventId) || seen.has(eventId)) continue;
+
+    let teams = null;
+    for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+      teams = parseWinlineTeams(lines[j]);
+      if (teams) break;
+    }
+    if (!teams) continue;
+
+    let oddsMatch = null;
+    for (let j = i; j <= Math.min(lines.length - 1, i + 4); j++) {
+      oddsMatch = lines[j].match(/(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/);
+      if (oddsMatch) break;
+    }
+    if (!oddsMatch) continue;
+
+    const [team1, team2] = teams;
+    seen.add(eventId);
+    events.push({
+      eventId,
+      sport: null,
+      tournament: "Winline",
+      team1,
+      team2,
+      eventName: `${team1} — ${team2}`,
+      startTime: null,
+      live: false,
+      odds: [
+        { market: "1X2", outcome: "1", odds: Number(oddsMatch[1]) },
+        { market: "1X2", outcome: "X", odds: Number(oddsMatch[2]) },
+        { market: "1X2", outcome: "2", odds: Number(oddsMatch[3]) },
+      ],
+    });
+  }
+
+  return events;
+}
+
+app.get("/winline", async (req, res) => {
+  if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
+  const t0 = Date.now();
+  const result = await scrapePage({
+    url: "https://winline.ru/stavki",
+    waitFor: 5000,
+    waitForSelector: 'a[href*="/stavki/event/"]',
+  });
+  if (!result.ok) return res.status(502).json({ ok: false, bookmaker: "winline", error: result.error, ms: Date.now() - t0 });
+
+  try {
+    const events = parseWinlineMarkdown(result.markdown || "");
+    return res.json({
+      ok: true,
+      bookmaker: "winline",
+      title: result.title,
+      eventsCount: events.length,
+      proxyUsed: result.proxyUsed,
+      ms: Date.now() - t0,
+      events,
+    });
+  } catch (e) {
+    return res.status(502).json({
+      ok: false,
+      bookmaker: "winline",
+      error: e?.message || String(e),
+      proxyUsed: result.proxyUsed,
+      ms: Date.now() - t0,
+    });
   }
 });
 

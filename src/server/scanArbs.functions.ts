@@ -21,6 +21,7 @@ const ENGINES = {
   pari:   { path: "/pari?scope=2300",   source: "pari",   urlBase: "https://pari.ru/live/" },
   leon:   { path: "/leon",              source: "leon",   urlBase: "https://leon.ru/live/" },
   zenit:  { path: "/zenit",             source: "zenit",  urlBase: "https://zenit.win/live/" },
+  winline:{ path: "/winline",           source: "winline",urlBase: "https://winline.ru/stavki/event/" },
 } as const;
 
 type EngineKey = keyof typeof ENGINES;
@@ -142,7 +143,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }) => {
     const t0 = Date.now();
-    const engines: EngineKey[] = ["fonbet", "pari", "leon", "zenit"];
+    const engines: EngineKey[] = ["fonbet", "pari", "leon", "zenit", "winline"];
 
     // 1. Параллельно тянем все БК
     const fetched = await Promise.all(engines.map((e) => fetchEngine(e)));
