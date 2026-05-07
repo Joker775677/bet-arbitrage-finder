@@ -506,7 +506,7 @@ function normalizeZenit(data, isLive) {
       const key = `${mapped.market}|${mapped.outcome}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      odds.push({ market: mapped.market, outcome: mapped.outcome, odds: f.h });
+      odds.push({ market: mapped.market, outcome: mapped.outcome, odds: hNum });
     }
     if (!odds.length) continue;
     out.push({
@@ -553,11 +553,16 @@ app.get("/zenit", async (req, res) => {
     }
     for (const data of lineFeeds) {
       if (!data) continue;
-      for (const ev of normalizeZenit(data, false)) {
-        if (seen.has(ev.eventId)) continue;
+      const norm = normalizeZenit(data, false);
+      let added = 0, dup = 0;
+      for (const ev of norm) {
+        if (seen.has(ev.eventId)) { dup++; continue; }
         seen.add(ev.eventId);
         events.push(ev);
+        added++;
       }
+      const games = data.games ? Object.keys(data.games).length : 0;
+      console.log(`[zenit] norm games=${games} -> normalized=${norm.length} added=${added} dup=${dup}`);
     }
     if (!events.length) throw new Error("no zenit feeds fetched");
     return res.json({ ok: true, bookmaker: "zenit", eventsCount: events.length, ms: Date.now() - t0, events });
