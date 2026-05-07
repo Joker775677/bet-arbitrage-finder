@@ -5,6 +5,7 @@ const ENGINE_PATH = {
   pari: "/pari?scope=2300",
   leon: "/leon",
   zenit: "/zenit",
+  winline: "/winline",
 } as const;
 
 export type EngineKey = keyof typeof ENGINE_PATH;

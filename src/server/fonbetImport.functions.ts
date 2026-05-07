@@ -16,3 +16,7 @@ export const importZenit = createServerFn({ method: "POST" }).handler(async () =
   const { importEngine } = await import("./fonbetImport.server");
   return importEngine("zenit");
 });
+export const importWinline = createServerFn({ method: "POST" }).handler(async () => {
+  const { importEngine } = await import("./fonbetImport.server");
+  return importEngine("winline");
+});

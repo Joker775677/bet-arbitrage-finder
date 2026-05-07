@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { importFonbet, importPari, importLeon, importZenit } from "@/server/fonbetImport.functions";
+import { importFonbet, importPari, importLeon, importZenit, importWinline } from "@/server/fonbetImport.functions";
 import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
 import { fetchEngineRaw, type EngineKey } from "@/server/fetchEngineRaw.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,11 +28,12 @@ interface SourceState {
   error?: string;
 }
 
-const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon" | "zenit"; url: string }[] = [
+const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon" | "zenit" | "winline"; url: string }[] = [
   { name: "Fonbet", key: "fonbet", url: "https://www.fon.bet/live/" },
   { name: "Pari",   key: "pari",   url: "https://pari.ru/live/" },
   { name: "Leon",   key: "leon",   url: "https://leon.ru/live/" },
   { name: "Zenit",  key: "zenit",  url: "https://zenit.win/live/" },
+  { name: "Winline", key: "winline", url: "https://winline.ru/stavki" },
 ];
 
 type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
@@ -52,11 +53,13 @@ function RuLivePage() {
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
   const importZn = useServerFn(importZenit);
+  const importWn = useServerFn(importWinline);
   const fetchRaw = useServerFn(fetchEngineRaw);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
   const [znBusy, setZnBusy] = useState(false);
+  const [wnBusy, setWnBusy] = useState(false);
   const [dlBusy, setDlBusy] = useState<EngineKey | null>(null);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
@@ -152,6 +155,19 @@ function RuLivePage() {
     }
   }, [znBusy, importZn]);
 
+  const runWinline = useCallback(async () => {
+    if (wnBusy) return;
+    setWnBusy(true);
+    try {
+      const res = await importWn({});
+      toast.success(`Winline API: ${res.eventsSaved} событий, ${res.oddsSaved} коэф. за ${(res.totalMs / 1000).toFixed(1)}с`);
+    } catch (e: any) {
+      toast.error(`Winline API: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setWnBusy(false);
+    }
+  }, [wnBusy, importWn]);
+
   const downloadRaw = useCallback(async (engine: EngineKey) => {
     if (dlBusy) return;
     setDlBusy(engine);
@@ -245,6 +261,10 @@ function RuLivePage() {
               {znBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
               Zenit API
             </Button>
+            <Button onClick={runWinline} disabled={wnBusy} size="lg" variant="secondary" title="Прямой API Winline">
+              {wnBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Zap className="mr-1 h-4 w-4" />}
+              Winline API
+            </Button>
           </div>
         </div>
       </Card>
@@ -255,7 +275,7 @@ function RuLivePage() {
           <p className="text-xs text-muted-foreground">Парсит букмекера и сохраняет ответ как .json (без записи в БД).</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(["fonbet", "pari", "leon", "zenit"] as EngineKey[]).map((eng) => (
+          {(["fonbet", "pari", "leon", "zenit", "winline"] as EngineKey[]).map((eng) => (
             <Button
               key={eng}
               onClick={() => downloadRaw(eng)}

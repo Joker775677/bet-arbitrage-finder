@@ -32,6 +32,7 @@ const ENGINE_META = {
   pari:   { path: "/pari?scope=2300",   source: "pari",   urlBase: "https://pari.ru/live/" },
   leon:   { path: "/leon",              source: "leon",   urlBase: "https://leon.ru/live/" },
   zenit:  { path: "/zenit",             source: "zenit",  urlBase: "https://zenit.win/live/" },
+  winline:{ path: "/winline",           source: "winline",urlBase: "https://winline.ru/stavki/event/" },
 } as const;
 
 export type EngineKey = keyof typeof ENGINE_META;
