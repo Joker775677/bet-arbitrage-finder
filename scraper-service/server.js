@@ -506,7 +506,7 @@ function normalizeZenit(data, isLive) {
       const key = `${mapped.market}|${mapped.outcome}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      odds.push({ market: mapped.market, outcome: mapped.outcome, odds: f.h });
+      odds.push({ market: mapped.market, outcome: mapped.outcome, odds: hNum });
     }
     if (!odds.length) continue;
     out.push({
