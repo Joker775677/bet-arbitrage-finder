@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getStoredSurebets } from "@/server/oddsApi.functions";
+import { getStoredSurebets } from "@/lib/oddsApi.functions";
 
 export const Route = createFileRoute("/api/v1/surebets")({
   server: {

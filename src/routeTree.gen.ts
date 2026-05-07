@@ -16,7 +16,6 @@ import { Route as RuLiveRouteImport } from './routes/ru-live'
 import { Route as QuickRouteImport } from './routes/quick'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as OddsRouteImport } from './routes/odds'
-import { Route as LiveRouteImport } from './routes/live'
 import { Route as BookmakersRouteImport } from './routes/bookmakers'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiV1SurebetsRouteImport } from './routes/api/v1/surebets'
@@ -59,11 +58,6 @@ const OddsRoute = OddsRouteImport.update({
   path: '/odds',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LiveRoute = LiveRouteImport.update({
-  id: '/live',
-  path: '/live',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BookmakersRoute = BookmakersRouteImport.update({
   id: '/bookmakers',
   path: '/bookmakers',
@@ -98,7 +92,6 @@ const ApiPublicScanRoute = ApiPublicScanRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bookmakers': typeof BookmakersRoute
-  '/live': typeof LiveRoute
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
@@ -114,7 +107,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bookmakers': typeof BookmakersRoute
-  '/live': typeof LiveRoute
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
@@ -131,7 +123,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bookmakers': typeof BookmakersRoute
-  '/live': typeof LiveRoute
   '/odds': typeof OddsRoute
   '/opportunities': typeof OpportunitiesRoute
   '/quick': typeof QuickRoute
@@ -149,7 +140,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/bookmakers'
-    | '/live'
     | '/odds'
     | '/opportunities'
     | '/quick'
@@ -165,7 +155,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/bookmakers'
-    | '/live'
     | '/odds'
     | '/opportunities'
     | '/quick'
@@ -181,7 +170,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/bookmakers'
-    | '/live'
     | '/odds'
     | '/opportunities'
     | '/quick'
@@ -198,7 +186,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BookmakersRoute: typeof BookmakersRoute
-  LiveRoute: typeof LiveRoute
   OddsRoute: typeof OddsRoute
   OpportunitiesRoute: typeof OpportunitiesRoute
   QuickRoute: typeof QuickRoute
@@ -263,13 +250,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OddsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/live': {
-      id: '/live'
-      path: '/live'
-      fullPath: '/live'
-      preLoaderRoute: typeof LiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/bookmakers': {
       id: '/bookmakers'
       path: '/bookmakers'
@@ -318,7 +298,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BookmakersRoute: BookmakersRoute,
-  LiveRoute: LiveRoute,
   OddsRoute: OddsRoute,
   OpportunitiesRoute: OpportunitiesRoute,
   QuickRoute: QuickRoute,
@@ -334,3 +313,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { scanAllAndSave } from "@/server/oddsApi.functions";
+import { scanAllAndSave } from "@/lib/oddsApi.functions";
 
 export const Route = createFileRoute("/api/public/scan")({
   server: {
