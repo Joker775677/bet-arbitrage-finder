@@ -52,10 +52,12 @@ function RuLivePage() {
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
   const importZn = useServerFn(importZenit);
+  const fetchRaw = useServerFn(fetchEngineRaw);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
   const [znBusy, setZnBusy] = useState(false);
+  const [dlBusy, setDlBusy] = useState<EngineKey | null>(null);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
