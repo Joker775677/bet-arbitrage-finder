@@ -146,12 +146,25 @@ async function scrapeWinlineDom() {
         if (!Number.isFinite(eventId) || seen.has(eventId)) continue;
         seen.add(eventId);
 
-        const card =
-          a.closest("article") ||
-          a.closest("section") ||
-          a.closest("li") ||
-          a.closest('[class*="event"]') ||
-          a.parentElement;
+        let card = a.parentElement;
+        let node = a;
+        while (node && node.parentElement) {
+          node = node.parentElement;
+          const candidateText = textOf(node);
+          if (
+            /(?:Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}/i.test(candidateText) &&
+            /\/stavki\/event\/\d+/.test(node.innerHTML || "")
+          ) {
+            card = node;
+            break;
+          }
+          if (
+            node.matches?.("article, section, li, [class*=\"event\"]") &&
+            /\/stavki\/event\/\d+/.test(node.innerHTML || "")
+          ) {
+            card = node;
+          }
+        }
         if (!card) continue;
 
         const cardText = textOf(card);
