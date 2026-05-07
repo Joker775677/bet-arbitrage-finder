@@ -5,7 +5,7 @@ import { Flame, RefreshCw, AlertTriangle, Activity, Trophy } from "lucide-react"
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getStoredSurebets, scanAllAndSave } from "@/server/oddsApi.functions";
+// import removed temporarily
 
 export const Route = createFileRoute("/surebets")({
   head: () => ({ meta: [{ title: "Surebets — live arbitrage opportunities" }] }),
@@ -15,12 +15,20 @@ export const Route = createFileRoute("/surebets")({
 function SurebetsPage() {
   const stored = useQuery({
     queryKey: ["stored-surebets"],
-    queryFn: () => getStoredSurebets(),
+    queryFn: async () => {
+      const res = await fetch("/api/v1/surebets");
+      if (!res.ok) throw new Error("Failed to load surebets");
+      return res.json();
+    },
     refetchInterval: 20_000,
   });
 
   const scan = useMutation({
-    mutationFn: () => scanAllAndSave({ data: {} }),
+    mutationFn: async () => {
+      const res = await fetch("/api/v1/surebets/scan", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to scan surebets");
+      return res.json();
+    },
     onSuccess: () => stored.refetch(),
   });
 

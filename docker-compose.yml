@@ -10,11 +10,8 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3001
-      SCRAPER_URL: http://ru-scraper:3000
     ports:
-      - "127.0.0.1:3001:3001"
-    depends_on:
-      - ru-scraper
+      - "3001:3001"
 
   ru-scraper:
     build:
@@ -26,3 +23,19 @@ services:
       - .env
     ports:
       - "127.0.0.1:3000:3000"
+
+  api-service:
+    build:
+      context: .
+      dockerfile: api-service/Dockerfile
+    container_name: api-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      API_PORT: 4000
+      SCRAPER_URL: http://ru-scraper:3000
+    depends_on:
+      - ru-scraper
+    ports:
+      - "127.0.0.1:4000:4000"
