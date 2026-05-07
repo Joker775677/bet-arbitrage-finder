@@ -117,8 +117,25 @@ async function scrapeWinlineDom() {
     const page = await ctx.newPage();
     await page.goto("https://winline.ru/stavki", { waitUntil: "domcontentloaded", timeout: 45000 });
     await page.waitForSelector('a[href*="/stavki/event/"]', { timeout: 15000 }).catch(() => {});
-    await page.waitForTimeout(5000);
+    // Winline often opens a live-heavy default view. Switch to the prematch tab
+    // first so the cards include "Сегодня/Завтра" instead of only live rows.
+    const nearestSelectors = [
+      'text=Ближайшие',
+      '[role="tab"]:has-text("Ближайшие")',
+      'button:has-text("Ближайшие")',
+      'a:has-text("Ближайшие")',
+    ];
+    for (const selector of nearestSelectors) {
+      try {
+        const locator = page.locator(selector).first();
+        if (await locator.count()) {
+          await locator.click({ timeout: 3000 });
+          break;
+        }
+      } catch {}
+    }
 
+    await page.waitForTimeout(7000);
     const payload = await page.evaluate(() => {
       const uniq = (arr) => [...new Set(arr)];
       const textOf = (el) => {
