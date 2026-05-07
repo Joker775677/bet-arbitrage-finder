@@ -250,6 +250,27 @@ function RuLivePage() {
       </Card>
 
       <Card className="p-5">
+        <div className="mb-3">
+          <h2 className="font-display text-lg font-semibold">Скачать сырой JSON</h2>
+          <p className="text-xs text-muted-foreground">Парсит букмекера и сохраняет ответ как .json (без записи в БД).</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(["fonbet", "pari", "leon", "zenit"] as EngineKey[]).map((eng) => (
+            <Button
+              key={eng}
+              onClick={() => downloadRaw(eng)}
+              disabled={dlBusy === eng}
+              variant="outline"
+              size="sm"
+            >
+              {dlBusy === eng ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+              {eng}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-lg font-semibold">Источники</h2>
           <Button variant="outline" size="sm" onClick={run} disabled={running}>
