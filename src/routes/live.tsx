@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listSports, scanLive, type LiveScanResult } from "@/server/oddsApi.functions";
+import { listSports, scanLive } from "@/server/oddsApi.functions";
+import type { LiveScanResult } from "@/server/oddsApi.types";
 
 export const Route = createFileRoute("/live")({
   head: () => ({ meta: [{ title: "Live Scanner — ArbScope" }] }),
