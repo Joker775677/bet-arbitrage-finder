@@ -16,7 +16,7 @@ const pool = new Pool({
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
-const ENGINES = ["fonbet", "pari", "leon", "zenit"];
+const ENGINES = ["fonbet", "pari", "leon", "zenit", "winline"];
 
 function norm(s = "") {
   return String(s).toLowerCase().trim().replace(/\s+/g, " ");

@@ -97,100 +97,144 @@ app.post("/scrape", async (req, res) => {
   return res.status(result.ok ? 200 : 502).json(result);
 });
 
-function parseWinlineTeams(raw) {
-  const compact = raw.replace(/\s+/g, " ").trim();
-  for (const sep of [" — ", " - ", " – ", " vs "]) {
-    const idx = compact.indexOf(sep);
-    if (idx > 0) {
-      const team1 = compact.slice(0, idx).trim();
-      const team2 = compact.slice(idx + sep.length).trim();
-      if (team1 && team2) return [team1, team2];
-    }
-  }
-  return null;
-}
+async function scrapeWinlineDom() {
+  const proxy = nextProxy();
+  const t0 = Date.now();
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      proxy: proxy || undefined,
+      args: ["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+    });
+    const ctx = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      locale: "ru-RU",
+      timezoneId: "Europe/Moscow",
+      viewport: { width: 1366, height: 900 },
+    });
+    const page = await ctx.newPage();
+    await page.goto("https://winline.ru/stavki", { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.waitForSelector('a[href*="/stavki/event/"]', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(5000);
 
-function parseWinlineMarkdown(md) {
-  const lines = md
-    .split("\n")
-    .map((x) => x.trim())
-    .filter(Boolean);
-  const events = [];
-  const seen = new Set();
+    const payload = await page.evaluate(() => {
+      const uniq = (arr) => [...new Set(arr)];
+      const textOf = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+      const eventAnchors = Array.from(document.querySelectorAll('a[href*="/stavki/event/"]'));
+      const items = [];
+      const debug = [];
+      const seen = new Set();
 
-  for (let i = 0; i < lines.length; i++) {
-    const link = lines[i].match(/\]\((?:https?:\/\/winline\.ru)?\/stavki\/event\/(\d+)\)/i);
-    if (!link) continue;
+      for (const a of eventAnchors) {
+        const href = a.getAttribute("href") || "";
+        const m = href.match(/\/stavki\/event\/(\d+)/);
+        if (!m) continue;
+        const eventId = Number(m[1]);
+        if (!Number.isFinite(eventId) || seen.has(eventId)) continue;
+        seen.add(eventId);
 
-    const eventId = Number(link[1]);
-    if (!Number.isFinite(eventId) || seen.has(eventId)) continue;
+        const card =
+          a.closest("article") ||
+          a.closest("section") ||
+          a.closest("li") ||
+          a.closest('[class*="event"]') ||
+          a.parentElement;
+        if (!card) continue;
 
-    let teams = null;
-    for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
-      teams = parseWinlineTeams(lines[j]);
-      if (teams) break;
-    }
-    if (!teams) continue;
+        const cardText = textOf(card);
+        const lines = cardText
+          .split(/[\n\r]+/)
+          .map((x) => x.trim())
+          .filter(Boolean);
+        const flat = uniq(lines.length ? lines : cardText.split(/\s{2,}/).map((x) => x.trim()).filter(Boolean));
+        const odds = uniq((cardText.match(/\b\d{1,2}\.\d{1,2}\b/g) || []).map((x) => Number(x)).filter((x) => x > 1.01 && x < 100)));
+        const timeText = flat.find((x) => /^(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(x)) || null;
 
-    let oddsMatch = null;
-    for (let j = i; j <= Math.min(lines.length - 1, i + 4); j++) {
-      oddsMatch = lines[j].match(/(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/);
-      if (oddsMatch) break;
-    }
-    if (!oddsMatch) continue;
+        const teams = [];
+        for (const row of flat) {
+          if (!row) continue;
+          if (/^(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(row)) continue;
+          if (/^\d+$/.test(row)) continue;
+          if (/^(Все|Видео|Линия|Live сейчас|Игры 24\/7|Киберспорт)$/i.test(row)) continue;
+          if (/^\d{1,2}\.\d{1,2}$/.test(row)) continue;
+          if (/\/stavki\/event\//i.test(row)) continue;
+          teams.push(row);
+          if (teams.length >= 2) break;
+        }
 
-    const [team1, team2] = teams;
-    seen.add(eventId);
-    events.push({
-      eventId,
+        debug.push({
+          eventId,
+          href,
+          sample: flat.slice(0, 8),
+          odds: odds.slice(0, 6),
+        });
+
+        if (teams.length < 2 || odds.length < 3) continue;
+        items.push({
+          eventId,
+          href,
+          team1: teams[0],
+          team2: teams[1],
+          startText: timeText,
+          odds: odds.slice(0, 3),
+        });
+      }
+
+      return { items, debug: debug.slice(0, 12), title: document.title };
+    });
+
+    const events = payload.items.map((item) => ({
+      eventId: item.eventId,
       sport: null,
       tournament: "Winline",
-      team1,
-      team2,
-      eventName: `${team1} — ${team2}`,
+      team1: item.team1,
+      team2: item.team2,
+      eventName: `${item.team1} — ${item.team2}`,
       startTime: null,
       live: false,
       odds: [
-        { market: "1X2", outcome: "1", odds: Number(oddsMatch[1]) },
-        { market: "1X2", outcome: "X", odds: Number(oddsMatch[2]) },
-        { market: "1X2", outcome: "2", odds: Number(oddsMatch[3]) },
+        { market: "1X2", outcome: "1", odds: Number(item.odds[0]) },
+        { market: "1X2", outcome: "X", odds: Number(item.odds[1]) },
+        { market: "1X2", outcome: "2", odds: Number(item.odds[2]) },
       ],
-    });
-  }
+    }));
 
-  return events;
+    return {
+      ok: true,
+      title: payload.title,
+      events,
+      debug: payload.debug,
+      proxyUsed: proxy ? proxy.server : null,
+      ms: Date.now() - t0,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e?.message || String(e),
+      proxyUsed: proxy ? proxy.server : null,
+      ms: Date.now() - t0,
+    };
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
 }
 
 app.get("/winline", async (req, res) => {
   if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
-  const t0 = Date.now();
-  const result = await scrapePage({
-    url: "https://winline.ru/stavki",
-    waitFor: 5000,
-    waitForSelector: 'a[href*="/stavki/event/"]',
+  const result = await scrapeWinlineDom();
+  if (!result.ok) return res.status(502).json({ ok: false, bookmaker: "winline", error: result.error, ms: result.ms });
+  return res.json({
+    ok: true,
+    bookmaker: "winline",
+    title: result.title,
+    eventsCount: result.events.length,
+    proxyUsed: result.proxyUsed,
+    ms: result.ms,
+    debug: result.events.length ? undefined : result.debug,
+    events: result.events,
   });
-  if (!result.ok) return res.status(502).json({ ok: false, bookmaker: "winline", error: result.error, ms: Date.now() - t0 });
-
-  try {
-    const events = parseWinlineMarkdown(result.markdown || "");
-    return res.json({
-      ok: true,
-      bookmaker: "winline",
-      title: result.title,
-      eventsCount: events.length,
-      proxyUsed: result.proxyUsed,
-      ms: Date.now() - t0,
-      events,
-    });
-  } catch (e) {
-    return res.status(502).json({
-      ok: false,
-      bookmaker: "winline",
-      error: e?.message || String(e),
-      proxyUsed: result.proxyUsed,
-      ms: Date.now() - t0,
-    });
-  }
 });
 
 // ============== Fonbet direct JSON API ==============
