@@ -122,6 +122,14 @@ async function scrapeWinlineDom() {
     const payload = await page.evaluate(() => {
       const uniq = (arr) => [...new Set(arr)];
       const textOf = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+      const pickMatchOdds = (cardText) => {
+        const idx = cardText.indexOf("Матч");
+        const src = idx >= 0 ? cardText.slice(idx) : cardText;
+        const nums = (src.match(/\d{1,2}\.\d{2}/g) || [])
+          .map((x) => Number(x))
+          .filter((x) => x > 1.01 && x < 30);
+        return uniq(nums).slice(0, 3);
+      };
       const eventAnchors = Array.from(document.querySelectorAll('a[href*="/stavki/event/"]'));
       const items = [];
       const debug = [];
@@ -149,8 +157,9 @@ async function scrapeWinlineDom() {
           .map((x) => x.trim())
           .filter(Boolean);
         const flat = uniq(lines.length ? lines : cardText.split(/\s{2,}/).map((x) => x.trim()).filter(Boolean));
-        const odds = uniq((cardText.match(/\b\d{1,2}\.\d{1,2}\b/g) || []).map((x) => Number(x)).filter((x) => x > 1.01 && x < 100));
+        const odds = pickMatchOdds(cardText);
         const timeText = flat.find((x) => /^(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(x)) || null;
+        const isLive = /(?:^|\s)(?:1Т|2Т|3Т|\d{1,2}'(?:\+\d+)?|Tx\d+)/i.test(cardText);
 
         const teams = [];
         for (const row of flat) {
@@ -169,9 +178,11 @@ async function scrapeWinlineDom() {
           href,
           sample: flat.slice(0, 8),
           odds: odds.slice(0, 6),
+          isLive,
+          timeText,
         });
 
-        if (teams.length < 2 || odds.length < 3) continue;
+        if (isLive || !timeText || teams.length < 2 || odds.length < 3) continue;
         items.push({
           eventId,
           href,
