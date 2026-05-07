@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
+import { scanAllAndFindArbs } from "@/server/scanArbs.server";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
