@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { findArbitrages, findNearArbs, type OddRow, type Arb, type NearArb } from "@/lib/arbitrage";
+import { findArbitrages, findMarketDiagnostics, findNearArbs, type OddRow, type Arb, type NearArb, type MarketDiagnostic } from "@/lib/arbitrage";
 import { tokenize, pairMatch } from "@/lib/eventMatch";
 
 interface EngineOdd { market: string; outcome: string; odds: number }
@@ -261,6 +261,11 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       ...a,
       event_name: displayMap.get(a.event_name) ?? a.event_name,
     }));
+    const marketDiagnosticsRaw = findMarketDiagnostics(odds, 30);
+    const marketDiagnostics: MarketDiagnostic[] = marketDiagnosticsRaw.map((d) => ({
+      ...d,
+      event_name: displayMap.get(d.event_name) ?? d.event_name,
+    }));
 
     try { await supabaseAdmin.rpc("cleanup_old_ru_data"); } catch {}
 
@@ -292,6 +297,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       arbsPrematch: arbs.filter((a) => !a.live).length,
       nearArbs,
       nearArbsWide,
+      marketDiagnostics,
       scannedAt: new Date().toISOString(),
     };
   });

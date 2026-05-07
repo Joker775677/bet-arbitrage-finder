@@ -51,6 +51,18 @@ export interface NearArb {
   live: boolean;
 }
 
+export interface MarketDiagnostic {
+  key: string;
+  sport: string;
+  event_name: string;
+  market: string;
+  live: boolean;
+  expectedOutcomes: number;
+  outcomeCount: number;
+  bookmakers: string[];
+  totalRows: number;
+  outcomes: { outcome: string; bestOdds: number; bookmakers: string[] }[];
+}
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -214,6 +226,71 @@ export function findNearArbs(odds: OddRow[], limit = 20, maxArbPercent = 1.05): 
     });
   }
   out.sort((a, b) => a.arbPercent - b.arbPercent);
+  return out.slice(0, limit);
+}
+
+export function findMarketDiagnostics(odds: OddRow[], limit = 30): MarketDiagnostic[] {
+  const groups = new Map<string, OddRow[]>();
+  for (const o of odds) {
+    if (JUNK_TEAM_RE.test(o.event_name)) continue;
+    const m = o.market.toUpperCase();
+    let groupMarket = o.market;
+    if (m.includes("HANDICAP") || m.includes("TOTAL")) {
+      const line = lineFromOutcome(o.outcome);
+      if (line === null) continue;
+      groupMarket = `${o.market}@${line}`;
+    }
+    const key = `${norm(o.sport)}|${norm(o.event_name)}|${norm(groupMarket)}`;
+    const arr = groups.get(key) ?? [];
+    arr.push(o);
+    groups.set(key, arr);
+  }
+
+  const out: MarketDiagnostic[] = [];
+  for (const [key, rows] of groups) {
+    const bmSet = new Set(rows.map((r) => r.bookmaker_name ?? r.bookmaker_id));
+    if (bmSet.size < 2) continue;
+
+    const bestByOutcome = new Map<string, OddRow>();
+    const bmsByOutcome = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const k = norm(r.outcome);
+      const cur = bestByOutcome.get(k);
+      if (!cur || r.odds > cur.odds) bestByOutcome.set(k, r);
+
+      let bms = bmsByOutcome.get(k);
+      if (!bms) { bms = new Set(); bmsByOutcome.set(k, bms); }
+      bms.add(r.bookmaker_name ?? r.bookmaker_id);
+    }
+
+    const need = expectedOutcomes(rows[0].market, rows);
+    if (bestByOutcome.size === need) continue;
+
+    out.push({
+      key,
+      sport: rows[0].sport,
+      event_name: rows[0].event_name,
+      market: rows[0].market,
+      live: !!rows[0].live,
+      expectedOutcomes: need,
+      outcomeCount: bestByOutcome.size,
+      bookmakers: Array.from(bmSet).sort(),
+      totalRows: rows.length,
+      outcomes: Array.from(bestByOutcome.entries())
+        .map(([k, r]) => ({
+          outcome: r.outcome,
+          bestOdds: r.odds,
+          bookmakers: Array.from(bmsByOutcome.get(k) ?? []).sort(),
+        }))
+        .sort((a, b) => a.outcome.localeCompare(b.outcome)),
+    });
+  }
+
+  out.sort((a, b) =>
+    b.bookmakers.length - a.bookmakers.length ||
+    b.totalRows - a.totalRows ||
+    b.outcomeCount - a.outcomeCount,
+  );
   return out.slice(0, limit);
 }
 
