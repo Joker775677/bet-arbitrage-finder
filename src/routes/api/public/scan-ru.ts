@@ -74,6 +74,8 @@ async function runRuScan() {
       arbsPrematch: result.arbsPrematch ?? 0,
       nearArbs: result.nearArbs ?? [],
       nearArbsWide: result.nearArbsWide ?? [],
+      nearArbsWideLive: result.nearArbsWideLive ?? [],
+      nearArbsWidePrematch: result.nearArbsWidePrematch ?? [],
       marketDiagnostics: result.marketDiagnostics ?? [],
       diagnosticSkippedDc: result.diagnosticSkippedDc ?? 0,
       durationMs: Date.now() - startedAt,

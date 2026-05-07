@@ -266,6 +266,16 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       ...a,
       event_name: displayMap.get(a.event_name) ?? a.event_name,
     }));
+    const nearArbsWideLiveRaw = findNearArbs(odds.filter((o) => o.live), 30, 1.2);
+    const nearArbsWideLive: NearArb[] = nearArbsWideLiveRaw.map((a) => ({
+      ...a,
+      event_name: displayMap.get(a.event_name) ?? a.event_name,
+    }));
+    const nearArbsWidePrematchRaw = findNearArbs(odds.filter((o) => !o.live), 30, 1.2);
+    const nearArbsWidePrematch: NearArb[] = nearArbsWidePrematchRaw.map((a) => ({
+      ...a,
+      event_name: displayMap.get(a.event_name) ?? a.event_name,
+    }));
     const marketDiagnosticsResult = findMarketDiagnostics(odds, 30);
     const marketDiagnostics: MarketDiagnostic[] = marketDiagnosticsResult.diagnostics.map((d) => ({
       ...d,
@@ -302,6 +312,8 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       arbsPrematch: arbs.filter((a) => !a.live).length,
       nearArbs,
       nearArbsWide,
+      nearArbsWideLive,
+      nearArbsWidePrematch,
       marketDiagnostics,
       diagnosticSkippedDc: marketDiagnosticsResult.skippedDc,
       scannedAt: new Date().toISOString(),
