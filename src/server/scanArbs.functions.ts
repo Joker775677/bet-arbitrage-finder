@@ -138,6 +138,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
   .inputValidator((d: any) => ({
     stake: typeof d?.stake === "number" && d.stake > 0 ? d.stake : 10000,
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
+    persistRaw: d?.persistRaw !== false,
   }))
   .handler(async ({ data }) => {
     const t0 = Date.now();
@@ -146,10 +147,12 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
     // 1. Параллельно тянем все БК
     const fetched = await Promise.all(engines.map((e) => fetchEngine(e)));
 
-    // 2. Параллельно сохраняем в БД
-    const persisted = await Promise.all(fetched.map((f) =>
-      f.error ? Promise.resolve({ saved: 0, odds: 0 }) : persistEngine(f.source, ENGINES[f.source as EngineKey].urlBase, f.events)
-    ));
+    // 2. Optionally persist raw events/odds. Public scan skips this heavy step.
+    const persisted = data.persistRaw
+      ? await Promise.all(fetched.map((f) =>
+          f.error ? Promise.resolve({ saved: 0, odds: 0 }) : persistEngine(f.source, ENGINES[f.source as EngineKey].urlBase, f.events)
+        ))
+      : fetched.map(() => ({ saved: 0, odds: 0 }));
 
     const stats = fetched.map((f, i) => ({
       bookmaker: f.source,

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/public/scan-ru")({
 async function runRuScan() {
   const startedAt = Date.now();
   try {
-    const result = await scanAllAndFindArbs({ data: { stake: 10000, minRoi: 1 } });
+    const result = await scanAllAndFindArbs({ data: { stake: 10000, minRoi: 1, persistRaw: false } });
     const supabase = getSupabase();
 
     // Save run
