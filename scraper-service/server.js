@@ -429,9 +429,11 @@ app.get("/leon", async (req, res) => {
 
 // ============== Zenit (zenit.win) direct JSON API ==============
 // Открытый JSON-API: требует только imprintHash (любой 32-hex).
+// Прематч: ?sport=N (1=футбол, 2=хоккей, 3=баскетбол, 4=теннис, 5=волейбол, 6=гандбол, 7=бейсбол,
+// 10=амфут, 11=регби, 12=NHL/доп, 14=киберспорт, 21=настольный теннис, 25=крикет и т.д.)
+const ZENIT_SPORTS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 14, 21, 25, 16, 17, 18, 19, 20];
 const ZENIT_URLS = {
   live: "https://zenit.win/ajax/live/printer/",
-  line: "https://zenit.win/ajax/line/printer/ranked?onlyview=0&lang_id=1",
 };
 const ZENIT_IMPRINT = "abcdef0123456789abcdef0123456789";
 
