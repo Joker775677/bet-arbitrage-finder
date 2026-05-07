@@ -97,6 +97,77 @@ app.post("/scrape", async (req, res) => {
   return res.status(result.ok ? 200 : 502).json(result);
 });
 
+function parseWinlineText(text, hrefIds = []) {
+  const lines = String(text || "")
+    .split(/[\r\n]+/)
+    .map((x) => x.replace(/\u00a0/g, " ").trim())
+    .filter(Boolean);
+
+  const uniq = (arr) => [...new Set(arr)];
+  const isTimeLine = (s) => /^(?:Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(s);
+  const isLiveLine = (s) => /(?:^|\s)(?:1Т|2Т|3Т|\d{1,2}'(?:\+\d+)?|Tx\d+)/i.test(s);
+  const isOddLine = (s) => /^\d{1,2}\.\d{2}$/.test(s);
+  const isMetaLine = (s) => /^(?:Матч|1 тайм|2 тайм|1Т|2Т|Все|Видео|Линия|Live сейчас|Игры 24\/7|Киберспорт)$/i.test(s);
+  const looksTeam = (s) => (
+    !!s &&
+    !isTimeLine(s) &&
+    !isLiveLine(s) &&
+    !isOddLine(s) &&
+    !isMetaLine(s) &&
+    !/^\+?\d+$/.test(s) &&
+    !/^\.st\d+\{/.test(s)
+  );
+
+  const items = [];
+  const debug = [];
+  let hrefIdx = 0;
+
+  for (let i = 0; i < lines.length - 2; i++) {
+    const team1 = lines[i];
+    const team2 = lines[i + 1];
+    if (!looksTeam(team1) || !looksTeam(team2)) continue;
+
+    let timeText = null;
+    let timeIdx = -1;
+    for (let j = i + 2; j <= Math.min(i + 8, lines.length - 1); j++) {
+      if (isTimeLine(lines[j])) {
+        timeText = lines[j];
+        timeIdx = j;
+        break;
+      }
+    }
+    if (!timeText) continue;
+
+    const oddsLines = [];
+    for (let j = timeIdx + 1; j < Math.min(timeIdx + 18, lines.length); j++) {
+      const row = lines[j];
+      if (j > timeIdx + 1 && looksTeam(row) && j + 1 < lines.length && looksTeam(lines[j + 1])) break;
+      if (isTimeLine(row)) break;
+      oddsLines.push(row);
+    }
+
+    const odds = uniq((oddsLines.join(" ").match(/\b\d{1,2}\.\d{2}\b/g) || [])
+      .map((x) => Number(x))
+      .filter((x) => x > 1.01 && x < 30)).slice(0, 3);
+
+    const eventId = hrefIds[hrefIdx++] || (90000000 + items.length);
+    debug.push({ eventId, sample: [team1, team2, timeText, ...oddsLines.slice(0, 5)], odds, timeText });
+    if (odds.length < 3) continue;
+
+    items.push({
+      eventId,
+      team1,
+      team2,
+      startText: timeText,
+      odds,
+    });
+
+    i = timeIdx;
+  }
+
+  return { items, debug: debug.slice(0, 12) };
+}
+
 async function scrapeWinlineDom() {
   const proxy = nextProxy();
   const t0 = Date.now();
@@ -117,8 +188,7 @@ async function scrapeWinlineDom() {
     const page = await ctx.newPage();
     await page.goto("https://winline.ru/stavki", { waitUntil: "domcontentloaded", timeout: 45000 });
     await page.waitForSelector('a[href*="/stavki/event/"]', { timeout: 15000 }).catch(() => {});
-    // Winline often opens a live-heavy default view. Switch to the prematch tab
-    // first so the cards include "Сегодня/Завтра" instead of only live rows.
+
     const nearestSelectors = [
       'text=Ближайшие',
       '[role="tab"]:has-text("Ближайшие")',
@@ -136,109 +206,23 @@ async function scrapeWinlineDom() {
     }
 
     await page.waitForTimeout(7000);
-    const payload = await page.evaluate(() => {
-      const uniq = (arr) => [...new Set(arr)];
-      const textOf = (el) => {
-        const raw = el?.innerText || el?.textContent || "";
-        return raw.replace(/\u00a0/g, " ").trim();
-      };
-      const pickMatchOdds = (cardText) => {
-        const idx = cardText.indexOf("Матч");
-        const src = idx >= 0 ? cardText.slice(idx) : cardText;
-        const nums = (src.match(/\d{1,2}\.\d{2}/g) || [])
-          .map((x) => Number(x))
-          .filter((x) => x > 1.01 && x < 30);
-        return uniq(nums).slice(0, 3);
-      };
-      const eventAnchors = Array.from(document.querySelectorAll('a[href*="/stavki/event/"]'));
-      const items = [];
-      const debug = [];
-      const seen = new Set();
 
-      for (const a of eventAnchors) {
-        const href = a.getAttribute("href") || "";
-        const m = href.match(/\/stavki\/event\/(\d+)/);
-        if (!m) continue;
-        const eventId = Number(m[1]);
-        if (!Number.isFinite(eventId) || seen.has(eventId)) continue;
-        seen.add(eventId);
+    const title = await page.title();
+    const hrefIds = await page.evaluate(() => Array.from(document.querySelectorAll('a[href*="/stavki/event/"]')).map((a) => {
+      const href = a.getAttribute("href") || "";
+      const m = href.match(/\/stavki\/event\/(\d+)/);
+      return m ? Number(m[1]) : null;
+    }).filter(Boolean));
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    const parsed = parseWinlineText(bodyText, hrefIds);
 
-        let card = a.parentElement;
-        let node = a;
-        while (node && node.parentElement) {
-          node = node.parentElement;
-          const candidateText = textOf(node);
-          if (
-            /(?:Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}/i.test(candidateText) &&
-            /\/stavki\/event\/\d+/.test(node.innerHTML || "")
-          ) {
-            card = node;
-            break;
-          }
-          if (
-            node.matches?.("article, section, li, [class*=\"event\"]") &&
-            /\/stavki\/event\/\d+/.test(node.innerHTML || "")
-          ) {
-            card = node;
-          }
-        }
-        if (!card) continue;
-
-        const cardText = textOf(card);
-        const lines = cardText
-          .split(/[\n\r]+/)
-          .map((x) => x.trim())
-          .filter(Boolean);
-        const flat = uniq(lines.length ? lines : cardText.split(/\s{2,}/).map((x) => x.trim()).filter(Boolean));
-        const odds = pickMatchOdds(cardText);
-        const timeText = flat.find((x) => /\d{1,2}:\d{2}/.test(x))
-          || cardText.match(/(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}/i)?.[0]
-          || null;
-        const isLive = /(?:^|\s)(?:1Т|2Т|3Т|\d{1,2}'(?:\+\d+)?|Tx\d+)/i.test(cardText);
-        const teams = [];
-        for (const row of flat) {
-          if (!row) continue;
-          if (/^(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(row)) continue;
-          if (/^\d+$/.test(row)) continue;
-          if (/^\.st\d+\{/.test(row)) continue;
-          if (/^(Р’СЃРµ|Р’РёРґРµРѕ|Р›РёРЅРёСЏ|Live СЃРµР№С‡Р°СЃ|РРіСЂС‹ 24\/7|РљРёР±РµСЂСЃРїРѕСЂС‚)$/i.test(row)) continue;
-          if (/^\d{1,2}\.\d{1,2}$/.test(row)) continue;
-          if (/\/stavki\/event\//i.test(row)) continue;
-          if (/^(Матч|1 тайм|2 тайм|1Т|2Т)$/i.test(row)) continue;
-          teams.push(row);
-          if (teams.length >= 2) break;
-        }
-
-        debug.push({
-          eventId,
-          href,
-          sample: flat.slice(0, 8),
-          odds: odds.slice(0, 6),
-          isLive,
-          timeText,
-        });
-
-        if (isLive || !timeText || teams.length < 2 || odds.length < 3) continue;
-        items.push({
-          eventId,
-          href,
-          team1: teams[0],
-          team2: teams[1],
-          startText: timeText,
-          odds: odds.slice(0, 3),
-        });
-      }
-
-      return { items, debug: debug.slice(0, 12), title: document.title };
-    });
-
-    const events = payload.items.map((item) => ({
+    const events = parsed.items.map((item) => ({
       eventId: item.eventId,
       sport: null,
       tournament: "Winline",
       team1: item.team1,
       team2: item.team2,
-      eventName: `${item.team1} вЂ” ${item.team2}`,
+      eventName: `${item.team1} — ${item.team2}`,
       startTime: null,
       live: false,
       odds: [
@@ -250,9 +234,9 @@ async function scrapeWinlineDom() {
 
     return {
       ok: true,
-      title: payload.title,
+      title,
       events,
-      debug: payload.debug,
+      debug: parsed.debug,
       proxyUsed: proxy ? proxy.server : null,
       ms: Date.now() - t0,
     };
