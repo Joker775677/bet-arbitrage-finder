@@ -322,5 +322,6 @@ export async function scanAllAndFindArbs(input: { data: ScanInput }) {
       diagnosticSkippedDc: marketDiagnosticsResult.skippedDc,
       scannedAt: new Date().toISOString(),
     };
-  });
+  }
+}
 
