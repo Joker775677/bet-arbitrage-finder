@@ -13,27 +13,27 @@ export const scanAllAndFindArbsRpc = createServerFn({ method: "POST" })
   });
 
 export const importFonbetRpc = createServerFn({ method: "POST" }).handler(async () => {
-  const { importFonbet } = await import("@/server/fonbetImport.functions");
+  const { importFonbet } = await import("@/lib/fonbetImport.functions");
   return importFonbet({});
 });
 
 export const importPariRpc = createServerFn({ method: "POST" }).handler(async () => {
-  const { importPari } = await import("@/server/fonbetImport.functions");
+  const { importPari } = await import("@/lib/fonbetImport.functions");
   return importPari({});
 });
 
 export const importLeonRpc = createServerFn({ method: "POST" }).handler(async () => {
-  const { importLeon } = await import("@/server/fonbetImport.functions");
+  const { importLeon } = await import("@/lib/fonbetImport.functions");
   return importLeon({});
 });
 
 export const importZenitRpc = createServerFn({ method: "POST" }).handler(async () => {
-  const { importZenit } = await import("@/server/fonbetImport.functions");
+  const { importZenit } = await import("@/lib/fonbetImport.functions");
   return importZenit({});
 });
 
 export const importWinlineRpc = createServerFn({ method: "POST" }).handler(async () => {
-  const { importWinline } = await import("@/server/fonbetImport.functions");
+  const { importWinline } = await import("@/lib/fonbetImport.functions");
   return importWinline({});
 });
 
