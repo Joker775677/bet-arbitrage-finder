@@ -54,6 +54,12 @@ export interface NearArb {
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+function lineFromOutcome(outcome: string): number | null {
+  const matches = outcome.match(/-?\d+(?:\.\d+)?/g);
+  if (!matches?.length) return null;
+  return Math.abs(parseFloat(matches[matches.length - 1]));
+}
+
 const DRAW_SPORT_RE = /(футбол|soccer|football|мини-футбол|futsal|водное поло|water polo|шахмат|chess)/i;
 const TWO_WAY_SPORT_RE = /(теннис|tennis|настольный теннис|table tennis|баскетбол|basket|волейбол|volley|бейсбол|baseball|mlb|afl|регби|rugby|mma|ufc|бокс|boxing|крикет|cricket|бадминтон|badminton|хоккей|hockey|nhl|хоккейбол)/i;
 
@@ -91,8 +97,7 @@ export function findArbitrages(
     let groupMarket = o.market;
     if (m.includes("HANDICAP") || m.includes("TOTAL")) {
       // outcome выглядит как "1 -1.5" / "Over 2.5" / "Under 2.5"
-      const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
-      const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
+      const line = lineFromOutcome(o.outcome);
       if (line === null) continue;
       groupMarket = `${o.market}@${line}`;
     }
@@ -174,8 +179,7 @@ export function findNearArbs(odds: OddRow[], limit = 20, maxArbPercent = 1.05): 
     const m = o.market.toUpperCase();
     let groupMarket = o.market;
     if (m.includes("HANDICAP") || m.includes("TOTAL")) {
-      const lineMatch = o.outcome.match(/-?\d+(?:\.\d+)?/);
-      const line = lineMatch ? Math.abs(parseFloat(lineMatch[0])) : null;
+      const line = lineFromOutcome(o.outcome);
       if (line === null) continue;
       groupMarket = `${o.market}@${line}`;
     }
