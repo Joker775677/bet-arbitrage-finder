@@ -1,0 +1,28 @@
+services:
+  okak-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: okak-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      SCRAPER_URL: http://ru-scraper:3000
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      - ru-scraper
+
+  ru-scraper:
+    build:
+      context: ./scraper-service
+      dockerfile: Dockerfile
+    container_name: ru-scraper
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"

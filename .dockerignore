@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.tanstack
+.nitro
+.wrangler
+scraper-service/node_modules
+*.log
+Dockerfile
+docker-compose.yml
