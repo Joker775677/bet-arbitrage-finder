@@ -241,6 +241,11 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
           odds: o.odds,
           url: `${ENGINES[r.bm as EngineKey].urlBase}${r.ev.eventId}`,
           live: !!r.ev.live,
+          sourceEventId: r.ev.eventId,
+          sourceEventName: r.ev.eventName,
+          sourceTeam1: r.ev.team1,
+          sourceTeam2: r.ev.team2,
+          sourceStartTime: r.ev.startTime,
         });
       }
     }

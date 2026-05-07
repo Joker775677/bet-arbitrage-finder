@@ -14,6 +14,11 @@ export interface OddRow {
   odds: number;
   url?: string;
   live?: boolean;
+  sourceEventId?: string | number;
+  sourceEventName?: string;
+  sourceTeam1?: string;
+  sourceTeam2?: string;
+  sourceStartTime?: string | null;
 }
 
 export interface ArbLeg {
@@ -24,6 +29,11 @@ export interface ArbLeg {
   stake: number;
   payout: number;
   url?: string;
+  sourceEventId?: string | number;
+  sourceEventName?: string;
+  sourceTeam1?: string;
+  sourceTeam2?: string;
+  sourceStartTime?: string | null;
 }
 
 export interface Arb {
@@ -162,6 +172,11 @@ export function findArbitrages(
         stake: round2(stake),
         payout: round2(stake * l.odds),
         url: l.url,
+        sourceEventId: l.sourceEventId,
+        sourceEventName: l.sourceEventName,
+        sourceTeam1: l.sourceTeam1,
+        sourceTeam2: l.sourceTeam2,
+        sourceStartTime: l.sourceStartTime,
       };
     });
 
