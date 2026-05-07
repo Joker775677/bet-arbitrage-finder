@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { importFonbet, importPari, importLeon, importZenit } from "@/server/fonbetImport.functions";
 import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
+import { fetchEngineRaw, type EngineKey } from "@/server/fetchEngineRaw.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { Database, Zap } from "lucide-react";
+import { Database, Zap, Download } from "lucide-react";
 
 export const Route = createFileRoute("/ru-live")({
   head: () => ({ meta: [{ title: "RU Live Scanner — ArbScope" }] }),
@@ -51,10 +52,12 @@ function RuLivePage() {
   const importPr = useServerFn(importPari);
   const importLn = useServerFn(importLeon);
   const importZn = useServerFn(importZenit);
+  const fetchRaw = useServerFn(fetchEngineRaw);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
   const [znBusy, setZnBusy] = useState(false);
+  const [dlBusy, setDlBusy] = useState<EngineKey | null>(null);
   const [stake, setStake] = useState(10000);
   const [minRoi, setMinRoi] = useState(0);
   const [running, setRunning] = useState(false);
@@ -149,6 +152,29 @@ function RuLivePage() {
     }
   }, [znBusy, importZn]);
 
+  const downloadRaw = useCallback(async (engine: EngineKey) => {
+    if (dlBusy) return;
+    setDlBusy(engine);
+    try {
+      const res = await fetchRaw({ data: { engine } });
+      const events = (res.payload?.events ?? []) as unknown[];
+      const blob = new Blob([JSON.stringify(res.payload, null, 2)], { type: "application/json" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${engine}-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success(`${engine}: ${events.length} событий, ${(res.ms / 1000).toFixed(1)}с — JSON скачан`);
+    } catch (e: any) {
+      toast.error(`${engine}: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setDlBusy(null);
+    }
+  }, [dlBusy, fetchRaw]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
@@ -220,6 +246,27 @@ function RuLivePage() {
               Zenit API
             </Button>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <div className="mb-3">
+          <h2 className="font-display text-lg font-semibold">Скачать сырой JSON</h2>
+          <p className="text-xs text-muted-foreground">Парсит букмекера и сохраняет ответ как .json (без записи в БД).</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(["fonbet", "pari", "leon", "zenit"] as EngineKey[]).map((eng) => (
+            <Button
+              key={eng}
+              onClick={() => downloadRaw(eng)}
+              disabled={dlBusy === eng}
+              variant="outline"
+              size="sm"
+            >
+              {dlBusy === eng ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+              {eng}
+            </Button>
+          ))}
         </div>
       </Card>
 
