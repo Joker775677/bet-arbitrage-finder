@@ -23,6 +23,28 @@ async function runRuScan() {
   try {
     const result = await scanAllAndFindArbs({ data: { stake: 10000, minRoi: 1, persistRaw: false } });
     const supabase = getSupabase();
+    const responseBody = {
+      ok: true,
+      arbs: result.arbs.length,
+      arbList: result.arbs,
+      stats: result.stats ?? [],
+      bookies: result.stats?.length ?? 0,
+      totalOdds: result.totalOdds ?? 0,
+      uniqueEvents: result.uniqueEvents ?? 0,
+      matchedEvents: result.matchedEvents ?? 0,
+      matchedLive: result.matchedLive ?? 0,
+      matchedPrematch: result.matchedPrematch ?? 0,
+      arbsLive: result.arbsLive ?? 0,
+      arbsPrematch: result.arbsPrematch ?? 0,
+      nearArbs: result.nearArbs ?? [],
+      nearArbsWide: result.nearArbsWide ?? [],
+      nearArbsWideLive: result.nearArbsWideLive ?? [],
+      nearArbsWidePrematch: result.nearArbsWidePrematch ?? [],
+      marketDiagnostics: result.marketDiagnostics ?? [],
+      diagnosticSkippedDc: result.diagnosticSkippedDc ?? 0,
+      durationMs: Date.now() - startedAt,
+      scannedAt: result.scannedAt,
+    };
 
     // Save run
     const { data: runRow } = await supabase
@@ -34,6 +56,7 @@ async function runRuScan() {
         arbs_found: result.arbs.length,
         duration_ms: Date.now() - startedAt,
         finished_at: new Date().toISOString(),
+        result_snapshot: responseBody,
       })
       .select("id")
       .single();
@@ -59,29 +82,7 @@ async function runRuScan() {
       await supabase.from("surebets").insert(rows);
     }
 
-    return Response.json({
-      ok: true,
-      arbs: result.arbs.length,
-      arbList: result.arbs,
-      stats: result.stats ?? [],
-      bookies: result.stats?.length ?? 0,
-      totalOdds: result.totalOdds ?? 0,
-      uniqueEvents: result.uniqueEvents ?? 0,
-      matchedEvents: result.matchedEvents ?? 0,
-      matchedLive: result.matchedLive ?? 0,
-      matchedPrematch: result.matchedPrematch ?? 0,
-      arbsLive: result.arbsLive ?? 0,
-      arbsPrematch: result.arbsPrematch ?? 0,
-      nearArbs: result.nearArbs ?? [],
-      nearArbsWide: result.nearArbsWide ?? [],
-      nearArbsWideLive: result.nearArbsWideLive ?? [],
-      nearArbsWidePrematch: result.nearArbsWidePrematch ?? [],
-      marketDiagnostics: result.marketDiagnostics ?? [],
-      diagnosticSkippedDc: result.diagnosticSkippedDc ?? 0,
-      durationMs: Date.now() - startedAt,
-      scannedAt: result.scannedAt,
-      runId: runRow?.id,
-    });
+    return Response.json({ ...responseBody, runId: runRow?.id });
   } catch (e: any) {
     return Response.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
