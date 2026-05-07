@@ -149,7 +149,7 @@ async function scrapeWinlineDom() {
           .map((x) => x.trim())
           .filter(Boolean);
         const flat = uniq(lines.length ? lines : cardText.split(/\s{2,}/).map((x) => x.trim()).filter(Boolean));
-        const odds = uniq((cardText.match(/\b\d{1,2}\.\d{1,2}\b/g) || []).map((x) => Number(x)).filter((x) => x > 1.01 && x < 100)));
+        const odds = uniq((cardText.match(/\b\d{1,2}\.\d{1,2}\b/g) || []).map((x) => Number(x)).filter((x) => x > 1.01 && x < 100));
         const timeText = flat.find((x) => /^(Сегодня|Завтра|\d{2}\.\d{2})\s+\d{1,2}:\d{2}$/i.test(x)) || null;
 
         const teams = [];
