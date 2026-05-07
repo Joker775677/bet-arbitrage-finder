@@ -429,9 +429,11 @@ app.get("/leon", async (req, res) => {
 
 // ============== Zenit (zenit.win) direct JSON API ==============
 // Открытый JSON-API: требует только imprintHash (любой 32-hex).
+// Прематч: ?sport=N (1=футбол, 2=хоккей, 3=баскетбол, 4=теннис, 5=волейбол, 6=гандбол, 7=бейсбол,
+// 10=амфут, 11=регби, 12=NHL/доп, 14=киберспорт, 21=настольный теннис, 25=крикет и т.д.)
+const ZENIT_SPORTS = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 14, 21, 25, 16, 17, 18, 19, 20];
 const ZENIT_URLS = {
   live: "https://zenit.win/ajax/live/printer/",
-  line: "https://zenit.win/ajax/line/printer/ranked?onlyview=0&lang_id=1",
 };
 const ZENIT_IMPRINT = "abcdef0123456789abcdef0123456789";
 
@@ -525,14 +527,32 @@ app.get("/zenit", async (req, res) => {
   if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
   const t0 = Date.now();
   try {
-    const [liveData, lineData] = await Promise.all([
-      fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; }),
-      fetchZenitFeed(ZENIT_URLS.line).catch((e) => { console.log("[zenit] line", e?.message); return null; }),
-    ]);
-    if (!liveData && !lineData) throw new Error("no zenit feeds fetched");
+    const liveP = fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; });
+    const lineFeeds = await Promise.all(
+      ZENIT_SPORTS.map((sid) =>
+        fetchZenitFeed(`https://zenit.win/ajax/line/printer/?lang_id=1&onlyview=0&sport=${sid}`)
+          .catch((e) => { console.log(`[zenit] line sport=${sid}`, e?.message); return null; })
+      )
+    );
+    const liveData = await liveP;
     const events = [];
-    if (liveData) events.push(...normalizeZenit(liveData, true));
-    if (lineData) events.push(...normalizeZenit(lineData, false));
+    const seen = new Set();
+    if (liveData) {
+      for (const ev of normalizeZenit(liveData, true)) {
+        if (seen.has(ev.eventId)) continue;
+        seen.add(ev.eventId);
+        events.push(ev);
+      }
+    }
+    for (const data of lineFeeds) {
+      if (!data) continue;
+      for (const ev of normalizeZenit(data, false)) {
+        if (seen.has(ev.eventId)) continue;
+        seen.add(ev.eventId);
+        events.push(ev);
+      }
+    }
+    if (!events.length) throw new Error("no zenit feeds fetched");
     return res.json({ ok: true, bookmaker: "zenit", eventsCount: events.length, ms: Date.now() - t0, events });
   } catch (e) {
     return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
