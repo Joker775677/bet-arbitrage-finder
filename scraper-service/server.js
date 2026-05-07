@@ -339,6 +339,28 @@ function mapLeonMarket(market, runner) {
     if (tags.includes("HOME")) return { market: "HANDICAP", outcome: `1 ${hcap}` };
     if (tags.includes("AWAY")) return { market: "HANDICAP", outcome: `2 ${hcap}` };
   }
+  // Угловые: тотал/фора/индивидуальный тотал
+  if (name.includes("углов")) {
+    const isHalf = name.includes("тайм");
+    if (isHalf) return null;
+    const isTeam1 = name.includes("хозя") || name.includes("команд 1") || name.includes("1-й команды");
+    const isTeam2 = name.includes("гост") || name.includes("команд 2") || name.includes("2-й команды");
+    if (tag === "TOTAL" && hcap != null) {
+      const mk = isTeam1 ? "CORNERS_TEAM_TOTAL_1" : isTeam2 ? "CORNERS_TEAM_TOTAL_2" : "CORNERS_TOTAL";
+      if (tags.includes("OVER"))  return { market: mk, outcome: `OVER ${hcap}` };
+      if (tags.includes("UNDER")) return { market: mk, outcome: `UNDER ${hcap}` };
+    }
+    if (tag === "HANDICAP" && hcap != null) {
+      if (tags.includes("HOME")) return { market: "CORNERS_HANDICAP", outcome: `1 ${hcap}` };
+      if (tags.includes("AWAY")) return { market: "CORNERS_HANDICAP", outcome: `2 ${hcap}` };
+    }
+    // Победитель по угловым
+    if (tag === "REGULAR") {
+      if (tags.includes("HOME")) return { market: "CORNERS_1X2", outcome: "1" };
+      if (tags.includes("DRAW")) return { market: "CORNERS_1X2", outcome: "X" };
+      if (tags.includes("AWAY")) return { market: "CORNERS_1X2", outcome: "2" };
+    }
+  }
   return null;
 }
 
