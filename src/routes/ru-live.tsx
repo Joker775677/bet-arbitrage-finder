@@ -152,6 +152,29 @@ function RuLivePage() {
     }
   }, [znBusy, importZn]);
 
+  const downloadRaw = useCallback(async (engine: EngineKey) => {
+    if (dlBusy) return;
+    setDlBusy(engine);
+    try {
+      const res = await fetchRaw({ data: { engine } });
+      const events = (res.payload?.events ?? []) as unknown[];
+      const blob = new Blob([JSON.stringify(res.payload, null, 2)], { type: "application/json" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${engine}-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success(`${engine}: ${events.length} событий, ${(res.ms / 1000).toFixed(1)}с — JSON скачан`);
+    } catch (e: any) {
+      toast.error(`${engine}: ${e?.message ?? "ошибка"}`);
+    } finally {
+      setDlBusy(null);
+    }
+  }, [dlBusy, fetchRaw]);
+
   // Load latest events from DB + subscribe to realtime
   const loadDbEvents = useCallback(async () => {
     const { data, count } = await supabase
