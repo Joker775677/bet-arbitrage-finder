@@ -45,6 +45,6 @@ export const fetchEngineRawRpc = createServerFn({ method: "POST" })
     return { engine: d.engine };
   })
   .handler(async ({ data }) => {
-    const { fetchEngineRaw } = await import("@/server/fetchEngineRaw.functions");
+    const { fetchEngineRaw } = await import("@/server/fetchEngineRaw.server");
     return fetchEngineRaw({ data });
   });
