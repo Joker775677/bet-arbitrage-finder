@@ -261,8 +261,8 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       ...a,
       event_name: displayMap.get(a.event_name) ?? a.event_name,
     }));
-    const marketDiagnosticsRaw = findMarketDiagnostics(odds, 30);
-    const marketDiagnostics: MarketDiagnostic[] = marketDiagnosticsRaw.map((d) => ({
+    const marketDiagnosticsResult = findMarketDiagnostics(odds, 30);
+    const marketDiagnostics: MarketDiagnostic[] = marketDiagnosticsResult.diagnostics.map((d) => ({
       ...d,
       event_name: displayMap.get(d.event_name) ?? d.event_name,
     }));
@@ -298,6 +298,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       nearArbs,
       nearArbsWide,
       marketDiagnostics,
+      diagnosticSkippedDc: marketDiagnosticsResult.skippedDc,
       scannedAt: new Date().toISOString(),
     };
   });

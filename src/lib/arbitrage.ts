@@ -64,6 +64,11 @@ export interface MarketDiagnostic {
   outcomes: { outcome: string; bestOdds: number; bookmakers: string[] }[];
 }
 
+export interface MarketDiagnosticsResult {
+  diagnostics: MarketDiagnostic[];
+  skippedDc: number;
+}
+
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 function lineFromOutcome(outcome: string): number | null {
@@ -229,7 +234,7 @@ export function findNearArbs(odds: OddRow[], limit = 20, maxArbPercent = 1.05): 
   return out.slice(0, limit);
 }
 
-export function findMarketDiagnostics(odds: OddRow[], limit = 30): MarketDiagnostic[] {
+export function findMarketDiagnostics(odds: OddRow[], limit = 30): MarketDiagnosticsResult {
   const groups = new Map<string, OddRow[]>();
   for (const o of odds) {
     if (JUNK_TEAM_RE.test(o.event_name)) continue;
@@ -247,9 +252,14 @@ export function findMarketDiagnostics(odds: OddRow[], limit = 30): MarketDiagnos
   }
 
   const out: MarketDiagnostic[] = [];
+  let skippedDc = 0;
   for (const [key, rows] of groups) {
     const bmSet = new Set(rows.map((r) => r.bookmaker_name ?? r.bookmaker_id));
     if (bmSet.size < 2) continue;
+    if (rows[0].market.toUpperCase() === "DC") {
+      skippedDc++;
+      continue;
+    }
 
     const bestByOutcome = new Map<string, OddRow>();
     const bmsByOutcome = new Map<string, Set<string>>();
@@ -291,7 +301,7 @@ export function findMarketDiagnostics(odds: OddRow[], limit = 30): MarketDiagnos
     b.totalRows - a.totalRows ||
     b.outcomeCount - a.outcomeCount,
   );
-  return out.slice(0, limit);
+  return { diagnostics: out.slice(0, limit), skippedDc };
 }
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
