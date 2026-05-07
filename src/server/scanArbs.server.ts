@@ -1,4 +1,3 @@
-import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { findArbitrages, findMarketDiagnostics, findNearArbs, type OddRow, type Arb, type NearArb, type MarketDiagnostic } from "@/lib/arbitrage";
 import { tokenize, pairMatch } from "@/lib/eventMatch";
