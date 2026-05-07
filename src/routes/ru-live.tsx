@@ -15,10 +15,10 @@ import {
   importPariRpc,
   importWinlineRpc,
   importZenitRpc,
+  listRuEventsRpc,
   scanAllAndFindArbsRpc,
   type EngineKey,
 } from "@/lib/ruLive.functions";
-import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap, Download } from "lucide-react";
 
 export const Route = createFileRoute("/ru-live")({
@@ -62,6 +62,7 @@ function RuLivePage() {
   const importZn = useServerFn(importZenitRpc);
   const importWn = useServerFn(importWinlineRpc);
   const fetchRaw = useServerFn(fetchEngineRawRpc);
+  const listRuEvents = useServerFn(listRuEventsRpc);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
@@ -198,26 +199,21 @@ function RuLivePage() {
     }
   }, [dlBusy, fetchRaw]);
 
-  // Load latest events from DB + subscribe to realtime
+  // Load latest events through the server so Cloud credentials stay server-side.
   const loadDbEvents = useCallback(async () => {
-    const { data, count } = await supabase
-      .from("ru_events")
-      .select("id, source, event_name, league, sport, scanned_at", { count: "exact" })
-      .order("scanned_at", { ascending: false })
-      .limit(50);
-    setDbEvents((data ?? []) as DbEventRow[]);
-    setDbCount(count ?? 0);
-  }, []);
+    try {
+      const res = await listRuEvents({});
+      setDbEvents(res.rows as DbEventRow[]);
+      setDbCount(res.count);
+    } catch (e: any) {
+      toast.error(`База событий: ${e?.message ?? "ошибка загрузки"}`);
+    }
+  }, [listRuEvents]);
 
   useEffect(() => {
     void loadDbEvents();
-    const ch = supabase
-      .channel("ru_events_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ru_events" }, () => {
-        void loadDbEvents();
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    const timer = window.setInterval(() => { void loadDbEvents(); }, 15000);
+    return () => window.clearInterval(timer);
   }, [loadDbEvents]);
 
   // автозапуск отключён — пока пилим выгрузку через API (Fonbet/Pari)
