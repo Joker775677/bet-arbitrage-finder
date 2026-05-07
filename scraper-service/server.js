@@ -528,12 +528,18 @@ app.get("/zenit", async (req, res) => {
   const t0 = Date.now();
   try {
     const liveP = fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; });
-    const lineFeeds = await Promise.all(
-      ZENIT_SPORTS.map((sid) =>
-        fetchZenitFeed(`https://zenit.win/ajax/line/printer/?lang_id=1&onlyview=0&sport=${sid}`)
-          .catch((e) => { console.log(`[zenit] line sport=${sid}`, e?.message); return null; })
-      )
-    );
+    const lineFeeds = [];
+    for (const sid of ZENIT_SPORTS) {
+      try {
+        const d = await fetchZenitFeed(`https://zenit.win/ajax/line/printer/?lang_id=1&onlyview=0&sport=${sid}`);
+        const n = d && d.games ? Object.keys(d.games).length : 0;
+        console.log(`[zenit] line sport=${sid} games=${n}`);
+        lineFeeds.push(d);
+      } catch (e) {
+        console.log(`[zenit] line sport=${sid} ERR`, e?.message);
+        lineFeeds.push(null);
+      }
+    }
     const liveData = await liveP;
     const events = [];
     const seen = new Set();
