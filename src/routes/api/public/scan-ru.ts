@@ -77,7 +77,7 @@ async function runRuScan() {
         bookmakers: a.legs.map((l: any) => l.bookmaker_name),
         source: "ru_engine",
       }));
-      const keys = Array.from(new Set(rows.map((r) => r.match_key)));
+      const keys = Array.from(new Set(rows.map((r: { match_key: string }) => r.match_key)));
       await supabase.from("surebets").delete().in("match_key", keys);
       await supabase.from("surebets").insert(rows);
     }
