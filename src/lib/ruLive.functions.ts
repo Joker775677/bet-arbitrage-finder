@@ -48,3 +48,8 @@ export const fetchEngineRawRpc = createServerFn({ method: "POST" })
     const { fetchEngineRaw } = await import("@/server/fetchEngineRaw.server");
     return fetchEngineRaw({ data });
   });
+
+export const listRuEventsRpc = createServerFn({ method: "GET" }).handler(async () => {
+  const { listRuEvents } = await import("@/server/ruEvents.server");
+  return listRuEvents();
+});
