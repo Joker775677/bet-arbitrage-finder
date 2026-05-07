@@ -226,6 +226,7 @@ export type Database = {
           finished_at: string | null
           id: string
           requests_remaining: string | null
+          result_snapshot: Json | null
           sports_scanned: string[]
           started_at: string
         }
@@ -238,6 +239,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           requests_remaining?: string | null
+          result_snapshot?: Json | null
           sports_scanned?: string[]
           started_at?: string
         }
@@ -250,6 +252,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           requests_remaining?: string | null
+          result_snapshot?: Json | null
           sports_scanned?: string[]
           started_at?: string
         }
