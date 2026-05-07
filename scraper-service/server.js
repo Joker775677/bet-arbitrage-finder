@@ -553,7 +553,14 @@ app.get("/zenit", async (req, res) => {
     }
     for (const data of lineFeeds) {
       if (!data) continue;
-      const norm = normalizeZenit(data, false);
+      const games = data.games ? Object.keys(data.games).length : 0;
+      let norm = [];
+      try {
+        norm = normalizeZenit(data, false);
+      } catch (e) {
+        console.log(`[zenit] normalize ERR games=${games}:`, e?.message);
+        continue;
+      }
       let added = 0, dup = 0;
       for (const ev of norm) {
         if (seen.has(ev.eventId)) { dup++; continue; }
@@ -561,8 +568,7 @@ app.get("/zenit", async (req, res) => {
         events.push(ev);
         added++;
       }
-      const games = data.games ? Object.keys(data.games).length : 0;
-      console.log(`[zenit] norm games=${games} -> normalized=${norm.length} added=${added} dup=${dup}`);
+      console.log(`[zenit] norm games=${games} normalized=${norm.length} added=${added} dup=${dup}`);
     }
     if (!events.length) throw new Error("no zenit feeds fetched");
     return res.json({ ok: true, bookmaker: "zenit", eventsCount: events.length, ms: Date.now() - t0, events });
