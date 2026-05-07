@@ -270,9 +270,10 @@ app.get("/pari",   makeEngineHandler("pari"));
 
 // ============== Leon direct JSON API ==============
 const LEON_FLAGS = "reg,urlv2,orn2,mm2,rrc,nodup,cmg";
+// to=N — окно прематча в минутах (120 = 2 часа, 4320 = 3 суток)
 const LEON_URLS = [
   `https://leon.ru/api-2/betline/events/inplayupcoming?ctag=ru-RU&hideClosed=true&flags=${LEON_FLAGS}`,
-  `https://leon.ru/api-2/betline/events/prematch?ctag=ru-RU&to=120&hideClosed=true&flags=${LEON_FLAGS}`,
+  `https://leon.ru/api-2/betline/events/prematch?ctag=ru-RU&to=4320&hideClosed=true&flags=${LEON_FLAGS}`,
 ];
 
 async function fetchLeonSnapshots() {
