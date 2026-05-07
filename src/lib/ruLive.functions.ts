@@ -8,7 +8,7 @@ export const scanAllAndFindArbsRpc = createServerFn({ method: "POST" })
     minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
   }))
   .handler(async ({ data }) => {
-    const { scanAllAndFindArbs } = await import("@/server/scanArbs.functions");
+    const { scanAllAndFindArbs } = await import("@/server/scanArbs.server");
     return scanAllAndFindArbs({ data });
   });
 
