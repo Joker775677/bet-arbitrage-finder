@@ -134,13 +134,14 @@ async function persistEngine(source: string, urlBase: string, events: EngineEven
   return { saved: eventRows.length, odds: savedOdds };
 }
 
-export const scanAllAndFindArbs = createServerFn({ method: "POST" })
-  .inputValidator((d: any) => ({
-    stake: typeof d?.stake === "number" && d.stake > 0 ? d.stake : 10000,
-    minRoi: typeof d?.minRoi === "number" ? d.minRoi : 0,
-    persistRaw: d?.persistRaw !== false,
-  }))
-  .handler(async ({ data }) => {
+interface ScanInput { stake?: number; minRoi?: number; persistRaw?: boolean }
+export async function scanAllAndFindArbs(input: { data: ScanInput }) {
+  const data = {
+    stake: typeof input?.data?.stake === "number" && input.data.stake > 0 ? input.data.stake : 10000,
+    minRoi: typeof input?.data?.minRoi === "number" ? input.data.minRoi : 0,
+    persistRaw: input?.data?.persistRaw !== false,
+  };
+  {
     const t0 = Date.now();
     const engines: EngineKey[] = ["fonbet", "pari", "leon", "zenit", "winline"];
 
