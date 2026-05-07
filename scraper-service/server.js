@@ -527,14 +527,32 @@ app.get("/zenit", async (req, res) => {
   if (TOKEN && req.headers["x-token"] !== TOKEN) return res.status(401).json({ error: "unauthorized" });
   const t0 = Date.now();
   try {
-    const [liveData, lineData] = await Promise.all([
-      fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; }),
-      fetchZenitFeed(ZENIT_URLS.line).catch((e) => { console.log("[zenit] line", e?.message); return null; }),
-    ]);
-    if (!liveData && !lineData) throw new Error("no zenit feeds fetched");
+    const liveP = fetchZenitFeed(ZENIT_URLS.live).catch((e) => { console.log("[zenit] live", e?.message); return null; });
+    const lineFeeds = await Promise.all(
+      ZENIT_SPORTS.map((sid) =>
+        fetchZenitFeed(`https://zenit.win/ajax/line/printer/?lang_id=1&onlyview=0&sport=${sid}`)
+          .catch((e) => { console.log(`[zenit] line sport=${sid}`, e?.message); return null; })
+      )
+    );
+    const liveData = await liveP;
     const events = [];
-    if (liveData) events.push(...normalizeZenit(liveData, true));
-    if (lineData) events.push(...normalizeZenit(lineData, false));
+    const seen = new Set();
+    if (liveData) {
+      for (const ev of normalizeZenit(liveData, true)) {
+        if (seen.has(ev.eventId)) continue;
+        seen.add(ev.eventId);
+        events.push(ev);
+      }
+    }
+    for (const data of lineFeeds) {
+      if (!data) continue;
+      for (const ev of normalizeZenit(data, false)) {
+        if (seen.has(ev.eventId)) continue;
+        seen.add(ev.eventId);
+        events.push(ev);
+      }
+    }
+    if (!events.length) throw new Error("no zenit feeds fetched");
     return res.json({ ok: true, bookmaker: "zenit", eventsCount: events.length, ms: Date.now() - t0, events });
   } catch (e) {
     return res.status(502).json({ ok: false, error: e?.message || String(e), ms: Date.now() - t0 });
