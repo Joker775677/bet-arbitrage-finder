@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { Disclaimer } from "@/components/Disclaimer";
+import { AppGate } from "@/components/AppGate";
 
 import appCss from "../styles.css?url";
 
