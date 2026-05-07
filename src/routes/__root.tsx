@@ -63,22 +63,24 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full bg-background">
-          <AppSidebar />
-          <div className="flex flex-1 flex-col">
-            <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
-              <SidebarTrigger />
-              <span className="font-display text-sm font-semibold tracking-tight text-foreground">Okak</span>
-            </header>
-            <main className="flex-1">
-              <Outlet />
-            </main>
-            <Disclaimer />
+      <AppGate>
+        <SidebarProvider>
+          <div className="flex min-h-screen w-full bg-background">
+            <AppSidebar />
+            <div className="flex flex-1 flex-col">
+              <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
+                <SidebarTrigger />
+                <span className="font-display text-sm font-semibold tracking-tight text-foreground">Okak</span>
+              </header>
+              <main className="flex-1">
+                <Outlet />
+              </main>
+              <Disclaimer />
+            </div>
           </div>
-        </div>
-        <Toaster richColors position="top-right" />
-      </SidebarProvider>
+        </SidebarProvider>
+      </AppGate>
+      <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
 }
