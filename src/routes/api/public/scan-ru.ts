@@ -62,6 +62,7 @@ async function runRuScan() {
     return Response.json({
       ok: true,
       arbs: result.arbs.length,
+      arbList: result.arbs,
       stats: result.stats ?? [],
       bookies: result.stats?.length ?? 0,
       totalOdds: result.totalOdds ?? 0,
