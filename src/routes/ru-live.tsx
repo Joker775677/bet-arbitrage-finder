@@ -358,7 +358,7 @@ function RuLivePage() {
             <Database className="h-5 w-5 text-primary" />
             <h2 className="font-display text-lg font-semibold">База данных событий</h2>
             <Badge variant="secondary">{dbCount}</Badge>
-            <span className="text-[11px] text-muted-foreground">realtime · автоочистка &gt; 24ч</span>
+            <span className="text-[11px] text-muted-foreground">обновление 15с · автоочистка &gt; 24ч</span>
           </div>
         </div>
         {dbEvents.length === 0 ? (
