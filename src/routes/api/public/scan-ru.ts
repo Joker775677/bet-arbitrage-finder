@@ -72,6 +72,7 @@ async function runRuScan() {
       arbsLive: result.arbsLive ?? 0,
       arbsPrematch: result.arbsPrematch ?? 0,
       nearArbs: result.nearArbs ?? [],
+      nearArbsWide: result.nearArbsWide ?? [],
       durationMs: Date.now() - startedAt,
       scannedAt: result.scannedAt,
       runId: runRow?.id,

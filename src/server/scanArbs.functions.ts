@@ -256,6 +256,11 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       ...a,
       event_name: displayMap.get(a.event_name) ?? a.event_name,
     }));
+    const nearArbsWideRaw = findNearArbs(odds, 30, 1.2);
+    const nearArbsWide: NearArb[] = nearArbsWideRaw.map((a) => ({
+      ...a,
+      event_name: displayMap.get(a.event_name) ?? a.event_name,
+    }));
 
     try { await supabaseAdmin.rpc("cleanup_old_ru_data"); } catch {}
 
@@ -286,6 +291,7 @@ export const scanAllAndFindArbs = createServerFn({ method: "POST" })
       arbsLive: arbs.filter((a) => a.live).length,
       arbsPrematch: arbs.filter((a) => !a.live).length,
       nearArbs,
+      nearArbsWide,
       scannedAt: new Date().toISOString(),
     };
   });

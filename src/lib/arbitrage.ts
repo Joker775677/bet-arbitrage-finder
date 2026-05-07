@@ -167,7 +167,7 @@ export function findArbitrages(
 }
 
 // Top-N "почти-вилки" — рынки полные, но margin >= 1. Полезно понимать, насколько мы близки.
-export function findNearArbs(odds: OddRow[], limit = 20): NearArb[] {
+export function findNearArbs(odds: OddRow[], limit = 20, maxArbPercent = 1.05): NearArb[] {
   const groups = new Map<string, OddRow[]>();
   for (const o of odds) {
     if (JUNK_TEAM_RE.test(o.event_name)) continue;
@@ -198,7 +198,7 @@ export function findNearArbs(odds: OddRow[], limit = 20): NearArb[] {
     if (distinctBms.size < 2) continue;
     const legs = Array.from(bestByOutcome.values());
     const arbPercent = legs.reduce((s, l) => s + 1 / l.odds, 0);
-    if (arbPercent < 1 || arbPercent > 1.05) continue; // только близкие к вилке
+    if (arbPercent < 1 || arbPercent > maxArbPercent) continue; // только близкие к вилке
     out.push({
       key,
       sport: rows[0].sport,
