@@ -8,9 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { importFonbet, importPari, importLeon, importZenit, importWinline } from "@/server/fonbetImport.functions";
-import { scanAllAndFindArbs } from "@/server/scanArbs.functions";
-import { fetchEngineRaw, type EngineKey } from "@/server/fetchEngineRaw.functions";
+import {
+  fetchEngineRawRpc,
+  importFonbetRpc,
+  importLeonRpc,
+  importPariRpc,
+  importWinlineRpc,
+  importZenitRpc,
+  scanAllAndFindArbsRpc,
+  type EngineKey,
+} from "@/lib/ruLive.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Zap, Download } from "lucide-react";
 
@@ -36,7 +43,7 @@ const ENGINE_LIST: { name: string; key: "fonbet" | "pari" | "leon" | "zenit" | "
   { name: "Winline", key: "winline", url: "https://winline.ru/stavki" },
 ];
 
-type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbs>>;
+type ScanResult = Awaited<ReturnType<typeof scanAllAndFindArbsRpc>>;
 
 interface DbEventRow {
   id: string;
@@ -48,13 +55,13 @@ interface DbEventRow {
 }
 
 function RuLivePage() {
-  const scanAll = useServerFn(scanAllAndFindArbs);
-  const importFb = useServerFn(importFonbet);
-  const importPr = useServerFn(importPari);
-  const importLn = useServerFn(importLeon);
-  const importZn = useServerFn(importZenit);
-  const importWn = useServerFn(importWinline);
-  const fetchRaw = useServerFn(fetchEngineRaw);
+  const scanAll = useServerFn(scanAllAndFindArbsRpc);
+  const importFb = useServerFn(importFonbetRpc);
+  const importPr = useServerFn(importPariRpc);
+  const importLn = useServerFn(importLeonRpc);
+  const importZn = useServerFn(importZenitRpc);
+  const importWn = useServerFn(importWinlineRpc);
+  const fetchRaw = useServerFn(fetchEngineRawRpc);
   const [fbBusy, setFbBusy] = useState(false);
   const [prBusy, setPrBusy] = useState(false);
   const [lnBusy, setLnBusy] = useState(false);
