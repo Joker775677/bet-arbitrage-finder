@@ -32,7 +32,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ArbScope — Bookmaker Arbitrage Scanner" },
+      { title: "Okak - Bookmaker Arbitrage Scanner" },
       { name: "description", content: "Find arbitrage opportunities (sure bets) across your own list of bookmakers." },
     ],
     links: [
@@ -68,7 +68,7 @@ function RootComponent() {
           <div className="flex flex-1 flex-col">
             <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
               <SidebarTrigger />
-              <span className="font-display text-sm font-semibold tracking-tight text-foreground">ArbScope</span>
+              <span className="font-display text-sm font-semibold tracking-tight text-foreground">Okak</span>
             </header>
             <main className="flex-1">
               <Outlet />

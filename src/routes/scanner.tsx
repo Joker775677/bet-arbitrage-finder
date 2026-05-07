@@ -10,7 +10,7 @@ import { useArbitrages } from "@/hooks/useArbitrages";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/scanner")({
-  head: () => ({ meta: [{ title: "Arbitrage Scanner — ArbScope" }] }),
+  head: () => ({ meta: [{ title: "Arbitrage Scanner - Okak" }] }),
   component: ScannerPage,
 });
 

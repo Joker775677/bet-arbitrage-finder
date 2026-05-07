@@ -28,7 +28,7 @@ export function AppSidebar() {
             <TrendingUp className="h-5 w-5 text-primary-foreground" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="font-display text-base font-bold text-sidebar-foreground">ArbScope</span>
+            <span className="font-display text-base font-bold text-sidebar-foreground">Okak</span>
             <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">Arbitrage Scanner</span>
           </div>
         </Link>
