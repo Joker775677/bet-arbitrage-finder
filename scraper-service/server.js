@@ -120,6 +120,19 @@ const FACTOR_MAP = {
   // Обе забьют
   1737: { market: "BTTS", outcome: "YES" },
   1738: { market: "BTTS", outcome: "NO" },
+  // === Угловые ===
+  // Тотал угловых
+  1727: { market: "CORNERS_TOTAL", outcome: "OVER" },
+  1728: { market: "CORNERS_TOTAL", outcome: "UNDER" },
+  // Индивидуальный тотал угловых команды 1
+  1733: { market: "CORNERS_TEAM_TOTAL_1", outcome: "OVER" },
+  1734: { market: "CORNERS_TEAM_TOTAL_1", outcome: "UNDER" },
+  // Индивидуальный тотал угловых команды 2
+  1736: { market: "CORNERS_TEAM_TOTAL_2", outcome: "OVER" },
+  1739: { market: "CORNERS_TEAM_TOTAL_2", outcome: "UNDER" },
+  // Фора по угловым
+  1730: { market: "CORNERS_HANDICAP", outcome: "1" },
+  1731: { market: "CORNERS_HANDICAP", outcome: "2" },
 };
 
 function pickProxyUrl() {
