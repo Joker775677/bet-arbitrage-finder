@@ -78,7 +78,7 @@ function lineFromOutcome(outcome: string): number | null {
 }
 
 const DRAW_SPORT_RE = /(футбол|soccer|football|мини-футбол|futsal|водное поло|water polo|шахмат|chess)/i;
-const TWO_WAY_SPORT_RE = /(теннис|tennis|настольный теннис|table tennis|баскетбол|basket|волейбол|volley|бейсбол|baseball|mlb|afl|регби|rugby|mma|ufc|бокс|boxing|крикет|cricket|бадминтон|badminton|хоккей|hockey|nhl|хоккейбол|setka|сетка|лига про|liga pro|киберспорт|esports|lol|dota|counter-?strike|cs2|bo3|fc\s*26|nhl\s*26)/i;
+const TWO_WAY_SPORT_RE = /(теннис|tennis|настольный теннис|table tennis|atp|wta|itf|итф|challenger|челленджер|utr|баскетбол|basket|волейбол|volley|бейсбол|baseball|mlb|afl|регби|rugby|mma|ufc|бокс|boxing|крикет|cricket|бадминтон|badminton|хоккей|hockey|nhl|хоккейбол|setka|сетка|лига про|liga pro|киберспорт|esports|lol|dota|counter-?strike|cs2|bo3|fc\s*26|nhl\s*26)/i;
 
 // Сколько исходов должно быть в рынке, чтобы он считался "полным".
 // Важно: некоторые БК отдают двухисходные рынки победителя как "1X2".
