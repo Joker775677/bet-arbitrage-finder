@@ -406,7 +406,7 @@ function normalizeLeon(snapshots) {
         team2: away.name,
         eventName: `${home.name} — ${away.name}`,
         startTime: ev.kickoff ? new Date(ev.kickoff).toISOString() : null,
-        live: !!ev.open,
+        live: ev.betline === "LIVE" || (ev.kickoff ? ev.kickoff <= Date.now() : false),
         odds,
       });
     }
