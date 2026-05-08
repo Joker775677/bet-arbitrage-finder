@@ -53,7 +53,7 @@ export async function runRuSurebetsScanImpl(input?: { stake?: number; minRoi?: n
       arbs_found: result.arbs.length,
       duration_ms: responseBody.durationMs,
       finished_at: new Date().toISOString(),
-      result_snapshot: responseBody,
+      result_snapshot: responseBody as any,
     })
     .select("id")
     .single();
