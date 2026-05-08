@@ -1,23 +1,54 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Flame, RefreshCw, AlertTriangle, Activity, Trophy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-// import removed temporarily
 
 export const Route = createFileRoute("/surebets")({
   head: () => ({ meta: [{ title: "Surebets — live arbitrage opportunities" }] }),
   component: SurebetsPage,
 });
 
+type SurebetLeg = {
+  bookmaker_name?: string;
+  outcome?: string;
+  odds?: number;
+  stake?: number;
+  payout?: number;
+};
+
+type StoredSurebet = {
+  id?: string;
+  key?: string;
+  sport?: string;
+  market?: string;
+  event_name?: string;
+  event_time?: string | null;
+  roi?: number;
+  profit?: number;
+  legs?: SurebetLeg[];
+};
+
+type StoredSurebetsPayload = {
+  arbs?: StoredSurebet[];
+  lastRun?: {
+    events_scanned?: number;
+    bookmakers_count?: number;
+    requests_remaining?: string | number | null;
+    error?: string | null;
+    started_at?: string;
+    duration_ms?: number;
+  } | null;
+};
+
 function SurebetsPage() {
   const stored = useQuery({
     queryKey: ["stored-surebets"],
     queryFn: async () => {
       const res = await fetch("/api/v1/surebets");
-      if (!res.ok) throw new Error("Failed to load surebets");
+      if (!res.ok) throw new Error("Не удалось загрузить вилки");
       return res.json();
     },
     refetchInterval: 20_000,
@@ -25,8 +56,12 @@ function SurebetsPage() {
 
   const scan = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/v1/surebets/scan", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to scan surebets");
+      const res = await fetch("/api/v1/surebets/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stake: 10000, minRoi: 0 }),
+      });
+      if (!res.ok) throw new Error("Не удалось обновить вилки");
       return res.json();
     },
     onSuccess: () => stored.refetch(),
@@ -34,14 +69,24 @@ function SurebetsPage() {
 
   useEffect(() => {
     // Auto-trigger first scan if DB is empty
-    if (stored.data && (stored.data.arbs?.length ?? 0) === 0 && !stored.data.lastRun && !scan.isPending) {
+    if (
+      stored.data &&
+      (stored.data.arbs?.length ?? 0) === 0 &&
+      !stored.data.lastRun &&
+      !scan.isPending
+    ) {
       scan.mutate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored.data]);
 
-  const arbs = (stored.data?.arbs ?? []) as any[];
-  const lastRun = stored.data?.lastRun as any;
+  const payload = stored.data as StoredSurebetsPayload | undefined;
+  const arbs = payload?.arbs ?? [];
+  const lastRun = payload?.lastRun ?? null;
+  const lastRunTime = lastRun?.started_at ? new Date(lastRun.started_at).toLocaleString() : "—";
+  const lastRunClock = lastRun?.started_at
+    ? new Date(lastRun.started_at).toLocaleTimeString()
+    : "—";
 
   return (
     <div className="space-y-5 p-6">
@@ -88,7 +133,7 @@ function SurebetsPage() {
           <p className="mt-3 font-medium">Пока нет вилок</p>
           <p className="text-sm text-muted-foreground">
             {lastRun
-              ? `Последний скан: ${new Date(lastRun.started_at).toLocaleTimeString()}, событий: ${lastRun.events_scanned}.`
+              ? `Последний скан: ${lastRunClock}, событий: ${lastRun.events_scanned ?? "—"}.`
               : "Запускаю первое сканирование..."}
           </p>
         </Card>
@@ -96,10 +141,12 @@ function SurebetsPage() {
 
       <div className="grid gap-3">
         {arbs.map((a) => (
-          <Card key={a.id} className="overflow-hidden">
+          <Card key={a.id ?? a.key ?? `${a.event_name}-${a.market}`} className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-5 py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="text-[10px] uppercase">{a.sport}</Badge>
+                <Badge variant="secondary" className="text-[10px] uppercase">
+                  {a.sport}
+                </Badge>
                 <span className="text-xs text-muted-foreground">{a.market}</span>
                 <span className="font-medium">{a.event_name}</span>
                 {a.event_time && (
@@ -116,17 +163,22 @@ function SurebetsPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Профит</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Профит
+                  </p>
                   <p className="font-display text-lg font-bold">{Number(a.profit).toFixed(2)}</p>
                 </div>
               </div>
             </div>
             <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(a.legs as any[]).map((l, i) => (
+              {(a.legs ?? []).map((l, i) => (
                 <div key={i} className="rounded-lg border border-border p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{l.bookmaker_name}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {l.bookmaker_name}
+                  </p>
                   <p className="font-medium">
-                    {l.outcome} <span className="text-muted-foreground">@ {Number(l.odds).toFixed(2)}</span>
+                    {l.outcome}{" "}
+                    <span className="text-muted-foreground">@ {Number(l.odds).toFixed(2)}</span>
                   </p>
                   <div className="mt-1 flex justify-between text-xs">
                     <span className="text-muted-foreground">Ставка</span>
@@ -145,15 +197,22 @@ function SurebetsPage() {
 
       {lastRun && (
         <p className="text-xs text-muted-foreground">
-          Последний скан: {new Date(lastRun.started_at).toLocaleString()} · длился {lastRun.duration_ms}мс ·{" "}
-          <Link to="/api/v1/surebets" className="underline">REST API</Link>
+          Последний скан: {lastRunTime} · длился {lastRun.duration_ms ?? "—"}мс
         </p>
       )}
     </div>
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  accent?: boolean;
+}) {
   return (
     <Card className="p-4">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
