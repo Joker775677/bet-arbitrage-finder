@@ -76,6 +76,8 @@ function SurebetsPage() {
   const payload = stored.data as StoredSurebetsPayload | undefined;
   const arbs = payload?.arbs ?? [];
   const lastRun = payload?.lastRun ?? null;
+  const lastRunTime = lastRun?.started_at ? new Date(lastRun.started_at).toLocaleString() : "—";
+  const lastRunClock = lastRun?.started_at ? new Date(lastRun.started_at).toLocaleTimeString() : "—";
 
   return (
     <div className="space-y-5 p-6">
@@ -122,7 +124,7 @@ function SurebetsPage() {
           <p className="mt-3 font-medium">Пока нет вилок</p>
           <p className="text-sm text-muted-foreground">
             {lastRun
-              ? `Последний скан: ${new Date(lastRun.started_at).toLocaleTimeString()}, событий: ${lastRun.events_scanned}.`
+              ? `Последний скан: ${lastRunClock}, событий: ${lastRun.events_scanned ?? "—"}.`
               : "Запускаю первое сканирование..."}
           </p>
         </Card>
@@ -179,7 +181,7 @@ function SurebetsPage() {
 
       {lastRun && (
         <p className="text-xs text-muted-foreground">
-          Последний скан: {new Date(lastRun.started_at).toLocaleString()} · длился {lastRun.duration_ms}мс
+          Последний скан: {lastRunTime} · длился {lastRun.duration_ms ?? "—"}мс
         </p>
       )}
     </div>
