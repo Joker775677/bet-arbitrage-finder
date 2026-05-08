@@ -13,6 +13,38 @@ export const Route = createFileRoute("/surebets")({
   component: SurebetsPage,
 });
 
+type SurebetLeg = {
+  bookmaker_name?: string;
+  outcome?: string;
+  odds?: number;
+  stake?: number;
+  payout?: number;
+};
+
+type StoredSurebet = {
+  id?: string;
+  key?: string;
+  sport?: string;
+  market?: string;
+  event_name?: string;
+  event_time?: string | null;
+  roi?: number;
+  profit?: number;
+  legs?: SurebetLeg[];
+};
+
+type StoredSurebetsPayload = {
+  arbs?: StoredSurebet[];
+  lastRun?: {
+    events_scanned?: number;
+    bookmakers_count?: number;
+    requests_remaining?: string | number | null;
+    error?: string | null;
+    started_at?: string;
+    duration_ms?: number;
+  } | null;
+};
+
 function SurebetsPage() {
   const getStoredSurebetsFn = useServerFn(getStoredSurebets);
   const scanAllAndSaveFn = useServerFn(scanAllAndSave);
@@ -30,14 +62,20 @@ function SurebetsPage() {
 
   useEffect(() => {
     // Auto-trigger first scan if DB is empty
-    if (stored.data && (stored.data.arbs?.length ?? 0) === 0 && !stored.data.lastRun && !scan.isPending) {
+    if (
+      stored.data &&
+      (stored.data.arbs?.length ?? 0) === 0 &&
+      !stored.data.lastRun &&
+      !scan.isPending
+    ) {
       scan.mutate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored.data]);
 
-  const arbs = (stored.data?.arbs ?? []) as any[];
-  const lastRun = stored.data?.lastRun as any;
+  const payload = stored.data as StoredSurebetsPayload | undefined;
+  const arbs = payload?.arbs ?? [];
+  const lastRun = payload?.lastRun ?? null;
 
   return (
     <div className="space-y-5 p-6">
@@ -92,7 +130,7 @@ function SurebetsPage() {
 
       <div className="grid gap-3">
         {arbs.map((a) => (
-          <Card key={a.id} className="overflow-hidden">
+          <Card key={a.id ?? a.key ?? `${a.event_name}-${a.market}`} className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-5 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="text-[10px] uppercase">{a.sport}</Badge>
@@ -118,7 +156,7 @@ function SurebetsPage() {
               </div>
             </div>
             <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(a.legs as any[]).map((l, i) => (
+              {(a.legs ?? []).map((l, i) => (
                 <div key={i} className="rounded-lg border border-border p-3">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{l.bookmaker_name}</p>
                   <p className="font-medium">
