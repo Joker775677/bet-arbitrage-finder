@@ -18,9 +18,11 @@ import { Route as OpportunitiesRouteImport } from './routes/opportunities'
 import { Route as OddsRouteImport } from './routes/odds'
 import { Route as BookmakersRouteImport } from './routes/bookmakers'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiV1SurebetsRouteImport } from './routes/api/v1/surebets'
 import { Route as ApiPublicScanRuLatestRouteImport } from './routes/api/public/scan-ru-latest'
 import { Route as ApiPublicScanRuRouteImport } from './routes/api/public/scan-ru'
 import { Route as ApiPublicScanRouteImport } from './routes/api/public/scan'
+import { Route as ApiV1SurebetsScanRouteImport } from './routes/api/v1/surebets.scan'
 
 const SurebetsRoute = SurebetsRouteImport.update({
   id: '/surebets',
@@ -67,6 +69,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1SurebetsRoute = ApiV1SurebetsRouteImport.update({
+  id: '/api/v1/surebets',
+  path: '/api/v1/surebets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicScanRuLatestRoute = ApiPublicScanRuLatestRouteImport.update({
   id: '/api/public/scan-ru-latest',
   path: '/api/public/scan-ru-latest',
@@ -82,6 +89,11 @@ const ApiPublicScanRoute = ApiPublicScanRouteImport.update({
   path: '/api/public/scan',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1SurebetsScanRoute = ApiV1SurebetsScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
+  getParentRoute: () => ApiV1SurebetsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +108,8 @@ export interface FileRoutesByFullPath {
   '/api/public/scan': typeof ApiPublicScanRoute
   '/api/public/scan-ru': typeof ApiPublicScanRuRoute
   '/api/public/scan-ru-latest': typeof ApiPublicScanRuLatestRoute
+  '/api/v1/surebets': typeof ApiV1SurebetsRouteWithChildren
+  '/api/v1/surebets/scan': typeof ApiV1SurebetsScanRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,6 +124,8 @@ export interface FileRoutesByTo {
   '/api/public/scan': typeof ApiPublicScanRoute
   '/api/public/scan-ru': typeof ApiPublicScanRuRoute
   '/api/public/scan-ru-latest': typeof ApiPublicScanRuLatestRoute
+  '/api/v1/surebets': typeof ApiV1SurebetsRouteWithChildren
+  '/api/v1/surebets/scan': typeof ApiV1SurebetsScanRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,6 +141,8 @@ export interface FileRoutesById {
   '/api/public/scan': typeof ApiPublicScanRoute
   '/api/public/scan-ru': typeof ApiPublicScanRuRoute
   '/api/public/scan-ru-latest': typeof ApiPublicScanRuLatestRoute
+  '/api/v1/surebets': typeof ApiV1SurebetsRouteWithChildren
+  '/api/v1/surebets/scan': typeof ApiV1SurebetsScanRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +159,8 @@ export interface FileRouteTypes {
     | '/api/public/scan'
     | '/api/public/scan-ru'
     | '/api/public/scan-ru-latest'
+    | '/api/v1/surebets'
+    | '/api/v1/surebets/scan'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +175,8 @@ export interface FileRouteTypes {
     | '/api/public/scan'
     | '/api/public/scan-ru'
     | '/api/public/scan-ru-latest'
+    | '/api/v1/surebets'
+    | '/api/v1/surebets/scan'
   id:
     | '__root__'
     | '/'
@@ -169,6 +191,8 @@ export interface FileRouteTypes {
     | '/api/public/scan'
     | '/api/public/scan-ru'
     | '/api/public/scan-ru-latest'
+    | '/api/v1/surebets'
+    | '/api/v1/surebets/scan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +208,7 @@ export interface RootRouteChildren {
   ApiPublicScanRoute: typeof ApiPublicScanRoute
   ApiPublicScanRuRoute: typeof ApiPublicScanRuRoute
   ApiPublicScanRuLatestRoute: typeof ApiPublicScanRuLatestRoute
+  ApiV1SurebetsRoute: typeof ApiV1SurebetsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -251,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/surebets': {
+      id: '/api/v1/surebets'
+      path: '/api/v1/surebets'
+      fullPath: '/api/v1/surebets'
+      preLoaderRoute: typeof ApiV1SurebetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/scan-ru-latest': {
       id: '/api/public/scan-ru-latest'
       path: '/api/public/scan-ru-latest'
@@ -272,8 +304,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicScanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/surebets/scan': {
+      id: '/api/v1/surebets/scan'
+      path: '/scan'
+      fullPath: '/api/v1/surebets/scan'
+      preLoaderRoute: typeof ApiV1SurebetsScanRouteImport
+      parentRoute: typeof ApiV1SurebetsRoute
+    }
   }
 }
+
+interface ApiV1SurebetsRouteChildren {
+  ApiV1SurebetsScanRoute: typeof ApiV1SurebetsScanRoute
+}
+
+const ApiV1SurebetsRouteChildren: ApiV1SurebetsRouteChildren = {
+  ApiV1SurebetsScanRoute: ApiV1SurebetsScanRoute,
+}
+
+const ApiV1SurebetsRouteWithChildren = ApiV1SurebetsRoute._addFileChildren(
+  ApiV1SurebetsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -288,7 +339,17 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicScanRoute: ApiPublicScanRoute,
   ApiPublicScanRuRoute: ApiPublicScanRuRoute,
   ApiPublicScanRuLatestRoute: ApiPublicScanRuLatestRoute,
+  ApiV1SurebetsRoute: ApiV1SurebetsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

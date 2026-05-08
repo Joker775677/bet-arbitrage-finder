@@ -18,8 +18,8 @@ ENV HOST=0.0.0.0
 ENV PORT=3001
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
 
 EXPOSE 3001
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "3001"]
+CMD ["npm", "run", "start"]
