@@ -77,7 +77,9 @@ function SurebetsPage() {
   const arbs = payload?.arbs ?? [];
   const lastRun = payload?.lastRun ?? null;
   const lastRunTime = lastRun?.started_at ? new Date(lastRun.started_at).toLocaleString() : "—";
-  const lastRunClock = lastRun?.started_at ? new Date(lastRun.started_at).toLocaleTimeString() : "—";
+  const lastRunClock = lastRun?.started_at
+    ? new Date(lastRun.started_at).toLocaleTimeString()
+    : "—";
 
   return (
     <div className="space-y-5 p-6">
@@ -135,7 +137,9 @@ function SurebetsPage() {
           <Card key={a.id ?? a.key ?? `${a.event_name}-${a.market}`} className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-5 py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="text-[10px] uppercase">{a.sport}</Badge>
+                <Badge variant="secondary" className="text-[10px] uppercase">
+                  {a.sport}
+                </Badge>
                 <span className="text-xs text-muted-foreground">{a.market}</span>
                 <span className="font-medium">{a.event_name}</span>
                 {a.event_time && (
@@ -152,7 +156,9 @@ function SurebetsPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Профит</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Профит
+                  </p>
                   <p className="font-display text-lg font-bold">{Number(a.profit).toFixed(2)}</p>
                 </div>
               </div>
@@ -160,9 +166,12 @@ function SurebetsPage() {
             <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
               {(a.legs ?? []).map((l, i) => (
                 <div key={i} className="rounded-lg border border-border p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{l.bookmaker_name}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {l.bookmaker_name}
+                  </p>
                   <p className="font-medium">
-                    {l.outcome} <span className="text-muted-foreground">@ {Number(l.odds).toFixed(2)}</span>
+                    {l.outcome}{" "}
+                    <span className="text-muted-foreground">@ {Number(l.odds).toFixed(2)}</span>
                   </p>
                   <div className="mt-1 flex justify-between text-xs">
                     <span className="text-muted-foreground">Ставка</span>
@@ -188,7 +197,15 @@ function SurebetsPage() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  accent?: boolean;
+}) {
   return (
     <Card className="p-4">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
