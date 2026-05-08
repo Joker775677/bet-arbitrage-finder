@@ -17,7 +17,12 @@ export const Route = createFileRoute("/api/v1/surebets")({
           );
         } catch (error) {
           return Response.json(
-            { ok: false, arbs: [], lastRun: null, error: error instanceof Error ? error.message : "fetch failed" },
+            {
+              ok: false,
+              arbs: [],
+              lastRun: null,
+              error: error instanceof Error ? error.message : "fetch failed",
+            },
             { status: 502 },
           );
         }

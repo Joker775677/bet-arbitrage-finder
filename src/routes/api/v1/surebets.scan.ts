@@ -10,7 +10,10 @@ export const Route = createFileRoute("/api/v1/surebets/scan")({
           const upstream = await fetch(`${apiBase}/api/v1/surebets/scan`, {
             method: "POST",
             headers: { "content-type": "application/json", accept: "application/json" },
-            body: JSON.stringify({ stake: Number(body.stake || 10000), minRoi: Number(body.minRoi || 0) }),
+            body: JSON.stringify({
+              stake: Number(body.stake || 10000),
+              minRoi: Number(body.minRoi || 0),
+            }),
             signal: AbortSignal.timeout(120_000),
           });
           const payload = await upstream.json();
