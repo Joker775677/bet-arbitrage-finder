@@ -6,7 +6,6 @@ import { Flame, RefreshCw, AlertTriangle, Activity, Trophy } from "lucide-react"
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getStoredSurebets, scanAllAndSave } from "@/lib/oddsApi.functions";
 
 export const Route = createFileRoute("/surebets")({
   head: () => ({ meta: [{ title: "Surebets — live arbitrage opportunities" }] }),
@@ -46,17 +45,26 @@ type StoredSurebetsPayload = {
 };
 
 function SurebetsPage() {
-  const getStoredSurebetsFn = useServerFn(getStoredSurebets);
-  const scanAllAndSaveFn = useServerFn(scanAllAndSave);
-
   const stored = useQuery({
     queryKey: ["stored-surebets"],
-    queryFn: () => getStoredSurebetsFn(),
+    queryFn: async () => {
+      const res = await fetch("/api/v1/surebets");
+      if (!res.ok) throw new Error("Не удалось загрузить вилки");
+      return res.json();
+    },
     refetchInterval: 20_000,
   });
 
   const scan = useMutation({
-    mutationFn: () => scanAllAndSaveFn({ data: {} }),
+    mutationFn: async () => {
+      const res = await fetch("/api/v1/surebets/scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stake: 10000, minRoi: 0 }),
+      });
+      if (!res.ok) throw new Error("Не удалось обновить вилки");
+      return res.json();
+    },
     onSuccess: () => stored.refetch(),
   });
 
