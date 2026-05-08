@@ -36,6 +36,7 @@ type StoredSurebetsPayload = {
   lastRun?: {
     events_scanned?: number;
     bookmakers_count?: number;
+    arbs_found?: number;
     requests_remaining?: string | number | null;
     error?: string | null;
     started_at?: string;
@@ -48,8 +49,9 @@ function SurebetsPage() {
     queryKey: ["stored-surebets"],
     queryFn: async () => {
       const res = await fetch("/api/v1/surebets");
-      if (!res.ok) throw new Error("Не удалось загрузить вилки");
-      return res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) throw new Error(data?.error || "Не удалось загрузить вилки");
+      return data;
     },
     refetchInterval: 20_000,
   });
@@ -61,8 +63,9 @@ function SurebetsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ stake: 10000, minRoi: 0 }),
       });
-      if (!res.ok) throw new Error("Не удалось обновить вилки");
-      return res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) throw new Error(data?.error || "Не удалось обновить вилки");
+      return data;
     },
     onSuccess: () => stored.refetch(),
   });
