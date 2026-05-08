@@ -5,8 +5,8 @@ export const Route = createFileRoute("/api/v1/surebets")({
     handlers: {
       GET: async () => {
         try {
-          const { getStoredSurebetsImpl } = await import("@/server/oddsApi.server");
-          const payload = await getStoredSurebetsImpl();
+          const { getRuSurebetsViewImpl } = await import("@/server/ruSurebets.server");
+          const payload = await getRuSurebetsViewImpl();
           return Response.json({ ok: true, ...payload });
         } catch (error) {
           return Response.json(
