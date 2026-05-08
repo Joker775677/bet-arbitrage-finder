@@ -1,11 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Flame, RefreshCw, AlertTriangle, Activity, Trophy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-// import removed temporarily
+import { getStoredSurebets, scanAllAndSave } from "@/lib/oddsApi.functions";
 
 export const Route = createFileRoute("/surebets")({
   head: () => ({ meta: [{ title: "Surebets — live arbitrage opportunities" }] }),
@@ -13,22 +14,17 @@ export const Route = createFileRoute("/surebets")({
 });
 
 function SurebetsPage() {
+  const getStoredSurebetsFn = useServerFn(getStoredSurebets);
+  const scanAllAndSaveFn = useServerFn(scanAllAndSave);
+
   const stored = useQuery({
     queryKey: ["stored-surebets"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/surebets");
-      if (!res.ok) throw new Error("Failed to load surebets");
-      return res.json();
-    },
+    queryFn: () => getStoredSurebetsFn(),
     refetchInterval: 20_000,
   });
 
   const scan = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/v1/surebets/scan", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to scan surebets");
-      return res.json();
-    },
+    mutationFn: () => scanAllAndSaveFn({ data: {} }),
     onSuccess: () => stored.refetch(),
   });
 
@@ -145,8 +141,7 @@ function SurebetsPage() {
 
       {lastRun && (
         <p className="text-xs text-muted-foreground">
-          Последний скан: {new Date(lastRun.started_at).toLocaleString()} · длился {lastRun.duration_ms}мс ·{" "}
-          <Link to="/api/v1/surebets" className="underline">REST API</Link>
+          Последний скан: {new Date(lastRun.started_at).toLocaleString()} · длился {lastRun.duration_ms}мс
         </p>
       )}
     </div>
