@@ -123,7 +123,7 @@ function BrowserPanel({ initialUrl, title = "Common" }: PanelProps) {
       <div className="relative flex-1 bg-black">
         <iframe
           ref={iframeRef}
-          src={url}
+          src={url === "about:blank" ? url : `/api/public/proxy?url=${encodeURIComponent(url)}`}
           title={title}
           className="h-full w-full border-0 bg-white"
           sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
