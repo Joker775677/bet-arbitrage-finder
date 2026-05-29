@@ -11,8 +11,7 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [account, setAccount] = useState("PositiveBet");
-  const [accepted, setAccepted] = useState(true);
+  
   const [error, setError] = useState("");
 
   useEffect(() => {
