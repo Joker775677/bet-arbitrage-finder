@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Eye, EyeOff, X, Briefcase, Settings, User, ChevronDown } from "lucide-react";
 
 const STORAGE_KEY = "okak_auth_v1";
 const LOGIN = "Joker";
@@ -9,6 +10,9 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [account, setAccount] = useState("PositiveBet");
+  const [accepted, setAccepted] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -20,6 +24,10 @@ export function AppGate({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (!accepted) {
+      setError("Необходимо принять лицензионный договор");
+      return;
+    }
     if (login === LOGIN && password === PASSWORD) {
       localStorage.setItem(STORAGE_KEY, "1");
       setAuthed(true);
@@ -33,42 +41,145 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   if (authed) return <>{children}</>;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-card p-6 shadow-lg"
-      >
-        <div className="space-y-1">
-          <h1 className="font-display text-2xl font-semibold text-foreground">Okak</h1>
-          <p className="text-sm text-muted-foreground">Введите логин и пароль для входа</p>
+    <div
+      className="flex min-h-screen items-center justify-center px-4"
+      style={{
+        backgroundImage:
+          "url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="w-full max-w-md overflow-hidden rounded-md border border-[#5a4632] bg-[#1f1f1f]/95 shadow-2xl backdrop-blur-sm">
+        {/* Title bar */}
+        <div className="flex items-center justify-between bg-gradient-to-b from-[#8a6a3f] to-[#6b4f2c] px-3 py-2 text-white">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3a2a18] ring-1 ring-[#b08a55]">
+              <User className="h-4 w-4 text-[#d4a574]" />
+            </div>
+            <span className="text-sm font-semibold tracking-widest">АВТОРИЗАЦИЯ</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button type="button" className="rounded p-1 hover:bg-white/10">
+              <Briefcase className="h-4 w-4" />
+            </button>
+            <button type="button" className="rounded p-1 hover:bg-white/10">
+              <Settings className="h-4 w-4" />
+            </button>
+            <button type="button" className="rounded p-1 hover:bg-white/10">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground">Логин</label>
-          <input
-            type="text"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-            autoFocus
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground">Пароль</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
-          />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <button
-          type="submit"
-          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Войти
-        </button>
-      </form>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-7 py-6 text-[#e8e8e8]">
+          <div className="text-center">
+            <h2 className="text-base font-bold text-white">Добро пожаловать!</h2>
+            <p className="mt-2 text-xs leading-relaxed text-[#b8b8b8]">
+              Укажите данные необходимые для вашей идентификации. В случае необходимости свяжитесь с
+              администрацией.
+            </p>
+          </div>
+
+          {/* Login field */}
+          <div className="relative rounded border border-[#4a4a4a] bg-[#2a2a2a] px-3 pb-2 pt-3">
+            <label className="absolute -top-2 left-3 bg-[#1f1f1f] px-1 text-[10px] text-[#9a9a9a]">
+              Ваш логин
+            </label>
+            <div className="flex items-center">
+              <input
+                type="text"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                autoFocus
+                className="w-full bg-transparent text-sm text-white outline-none"
+              />
+              {login && (
+                <button
+                  type="button"
+                  onClick={() => setLogin("")}
+                  className="text-[#9a9a9a] hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Password field */}
+          <div className="relative rounded border border-[#4a4a4a] bg-[#2a2a2a] px-3 pb-2 pt-3">
+            <label className="absolute -top-2 left-3 bg-[#1f1f1f] px-1 text-[10px] text-[#9a9a9a]">
+              Ваш пароль
+            </label>
+            <div className="flex items-center">
+              <input
+                type={showPass ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-transparent text-sm text-white outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                className="text-[#9a9a9a] hover:text-white"
+              >
+                {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Account dropdown */}
+          <div>
+            <label className="mb-1 block text-xs text-[#d8d8d8]">Аккаунт от:</label>
+            <div className="relative">
+              <select
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                className="w-full appearance-none rounded border border-[#4a4a4a] bg-[#2a2a2a] px-3 py-2 text-sm text-white outline-none"
+              >
+                <option>PositiveBet</option>
+                <option>BetCity</option>
+                <option>Fonbet</option>
+                <option>1xBet</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9a9a9a]" />
+            </div>
+          </div>
+
+          {/* License */}
+          <div className="text-center text-xs">
+            <label className="inline-flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                className="h-4 w-4 accent-[#8a6a3f]"
+              />
+              <span className="text-[#d8d8d8]">
+                Я принимаю{" "}
+                <a className="text-[#d4a574] underline underline-offset-2" href="#">
+                  Лицензионный договор
+                </a>
+              </span>
+            </label>
+            <p className="mt-2 text-[#b8b8b8]">
+              Нет аккаунта?{" "}
+              <a className="text-[#d4a574] underline underline-offset-2" href="#">
+                Зарегистрируйтесь
+              </a>
+            </p>
+          </div>
+
+          {error && <p className="text-center text-xs text-red-400">{error}</p>}
+
+          <button
+            type="submit"
+            className="w-full rounded bg-gradient-to-b from-[#8a6a3f] to-[#6b4f2c] py-2.5 text-sm font-semibold text-white shadow-md transition hover:from-[#9a7a4f] hover:to-[#7b5f3c]"
+          >
+            Вход
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
