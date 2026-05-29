@@ -128,48 +128,6 @@ export function AppGate({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Account dropdown */}
-          <div>
-            <label className="mb-1 block text-xs text-[#d8d8d8]">Аккаунт от:</label>
-            <div className="relative">
-              <select
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                className="w-full appearance-none rounded border border-[#4a4a4a] bg-[#2a2a2a] px-3 py-2 text-sm text-white outline-none"
-              >
-                <option>PositiveBet</option>
-                <option>BetCity</option>
-                <option>Fonbet</option>
-                <option>1xBet</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9a9a9a]" />
-            </div>
-          </div>
-
-          {/* License */}
-          <div className="text-center text-xs">
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={accepted}
-                onChange={(e) => setAccepted(e.target.checked)}
-                className="h-4 w-4 accent-[#8a6a3f]"
-              />
-              <span className="text-[#d8d8d8]">
-                Я принимаю{" "}
-                <a className="text-[#d4a574] underline underline-offset-2" href="#">
-                  Лицензионный договор
-                </a>
-              </span>
-            </label>
-            <p className="mt-2 text-[#b8b8b8]">
-              Нет аккаунта?{" "}
-              <a className="text-[#d4a574] underline underline-offset-2" href="#">
-                Зарегистрируйтесь
-              </a>
-            </p>
-          </div>
-
           {error && <p className="text-center text-xs text-red-400">{error}</p>}
 
           <button
