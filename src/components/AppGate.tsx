@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Eye, EyeOff, X, Briefcase, Settings, User, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, X, Briefcase, Settings, User } from "lucide-react";
 
 const STORAGE_KEY = "okak_auth_v1";
 const LOGIN = "Joker";
