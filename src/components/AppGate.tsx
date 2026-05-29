@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Eye, EyeOff, X, Briefcase, Settings, User, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, X, Briefcase, Settings, User } from "lucide-react";
 
 const STORAGE_KEY = "okak_auth_v1";
 const LOGIN = "Joker";
@@ -11,8 +11,7 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [account, setAccount] = useState("PositiveBet");
-  const [accepted, setAccepted] = useState(true);
+  
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -24,10 +23,6 @@ export function AppGate({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!accepted) {
-      setError("Необходимо принять лицензионный договор");
-      return;
-    }
     if (login === LOGIN && password === PASSWORD) {
       localStorage.setItem(STORAGE_KEY, "1");
       setAuthed(true);
@@ -126,48 +121,6 @@ export function AppGate({ children }: { children: React.ReactNode }) {
                 {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-          </div>
-
-          {/* Account dropdown */}
-          <div>
-            <label className="mb-1 block text-xs text-[#d8d8d8]">Аккаунт от:</label>
-            <div className="relative">
-              <select
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                className="w-full appearance-none rounded border border-[#4a4a4a] bg-[#2a2a2a] px-3 py-2 text-sm text-white outline-none"
-              >
-                <option>PositiveBet</option>
-                <option>BetCity</option>
-                <option>Fonbet</option>
-                <option>1xBet</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9a9a9a]" />
-            </div>
-          </div>
-
-          {/* License */}
-          <div className="text-center text-xs">
-            <label className="inline-flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={accepted}
-                onChange={(e) => setAccepted(e.target.checked)}
-                className="h-4 w-4 accent-[#8a6a3f]"
-              />
-              <span className="text-[#d8d8d8]">
-                Я принимаю{" "}
-                <a className="text-[#d4a574] underline underline-offset-2" href="#">
-                  Лицензионный договор
-                </a>
-              </span>
-            </label>
-            <p className="mt-2 text-[#b8b8b8]">
-              Нет аккаунта?{" "}
-              <a className="text-[#d4a574] underline underline-offset-2" href="#">
-                Зарегистрируйтесь
-              </a>
-            </p>
           </div>
 
           {error && <p className="text-center text-xs text-red-400">{error}</p>}
