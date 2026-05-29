@@ -23,10 +23,6 @@ export function AppGate({ children }: { children: React.ReactNode }) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!accepted) {
-      setError("Необходимо принять лицензионный договор");
-      return;
-    }
     if (login === LOGIN && password === PASSWORD) {
       localStorage.setItem(STORAGE_KEY, "1");
       setAuthed(true);
